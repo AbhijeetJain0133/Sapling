@@ -1,0 +1,35 @@
+@namespace Sapling.Shared.Components
+
+<div class="scrim @(Sheet ? "sheet" : null)" @onclick="OnClose">
+    <div class="modal @(Wide ? "modal-wide" : null)" @onclick:stopPropagation>
+        @if (!string.IsNullOrEmpty(Title))
+        {
+            <div class="modal-head row between g-3">
+                <h4>@Title</h4>
+                <button type="button" class="btn btn-ghost btn-icon btn-sm" @onclick="OnClose" aria-label="Close">
+                    <SapIcon Name="x" Size="16" />
+                </button>
+            </div>
+        }
+        <div class="modal-body">@ChildContent</div>
+        @if (Footer is not null)
+        {
+            <div class="modal-foot">@Footer</div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string? Title { get; set; }
+
+    [Parameter] public bool Sheet { get; set; }
+
+    /// <summary>A wider dialog for two-column forms; falls back to one column on narrow screens.</summary>
+    [Parameter] public bool Wide { get; set; }
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    [Parameter] public RenderFragment? Footer { get; set; }
+}

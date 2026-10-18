@@ -1,0 +1,157 @@
+@namespace Sapling.Shared.Components
+
+@* One role in full: shared by the Career & skills page (the student's target) and the preview of any other role. *@
+<div class="stack g-5">
+    <div class="g-card hue-career career-hero">
+        <SapArt Name="career" Class="g-card-art" />
+        <div class="row-top g-6 wrap career-hero-row" style="position:relative">
+            <ScoreRing Value="Path.FitScore" Size="140" Caption="Fit for you" Label="Fit" OnLight />
+            <div class="grow stack g-3 career-hero-body">
+                <div class="row g-2 wrap">
+                    @if (Path.IsTarget)
+                    {
+                        <SapBadge Tone="primary" Icon="target">Your target</SapBadge>
+                    }
+                    <SapBadge Tone="@TierTone(Path.Tier)">@Path.Tier</SapBadge>
+                    <SapBadge Tone="neutral">@Path.Family</SapBadge>
+                    @if (RouteLabel(Path.CourseRelevance) is { } route)
+                    {
+                        <SapBadge Tone="success" Icon="graduation-cap">@route</SapBadge>
+                    }
+                    @foreach (var category in Path.Outlook)
+                    {
+                        <SapBadge Tone="success" Icon="trending-up">@JobOutlook.Label(category)</SapBadge>
+                    }
+                </div>
+                <h1 style="font-size:30px;line-height:36px">@Path.Title</h1>
+                @if (Path.AlsoCalled.Count > 0)
+                {
+                    <span class="t-caption t-subtle">Also called @string.Join(", ", Path.AlsoCalled)</span>
+                }
+                <p class="t-muted career-hero-desc @(_descOpen ? "is-open" : null)" style="margin:0">@Path.Description</p>
+                @* Phones clamp the description; this button (hidden on wider screens) opens it. *@
+                <button type="button" class="career-hero-more" @onclick="() => _descOpen = !_descOpen">@(_descOpen ? "Show less" : "Read more")</button>
+                @if (Actions is not null)
+                {
+                    <div class="row g-2 wrap">@Actions</div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-2">
+        <SapCard Title="Why this fits you" Subtitle="75% your skills, 15% your course, 10% your interest quiz">
+            <Header><WhyThisPopover Reasons="Path.Reasons" /></Header>
+            <ChildContent>
+                <div class="stack g-4">
+                    <div class="stack g-3">
+                        <LinearBar Percent="Path.Fit.Skills" Label="@($"Skills: you have {Path.Have} of {Path.Total}")" ValueText="@($"{Path.Fit.Skills}%")" Small="true" />
+                        @if (Path.Fit.Course is { } course)
+                        {
+                            <LinearBar Percent="course" Label="Route from your course" ValueText="@($"{course}%")" Small="true" />
+                        }
+                        @if (Path.Fit.Interests is { } interests)
+                        {
+                            <LinearBar Percent="interests" Label="Match with your interest quiz" ValueText="@($"{interests}%")" Small="true" />
+                        }
+                    </div>
+                    <ul class="stack g-2" style="margin:0;padding-left:18px">
+                        @foreach (var reason in Path.Reasons)
+                        {
+                            <li class="t-small">@reason</li>
+                        }
+                    </ul>
+                </div>
+            </ChildContent>
+        </SapCard>
+
+        <SapCard Title="Things to weigh" Subtitle="The case against, from your profile">
+            <ChildContent>
+                <div class="card card-inset stack g-2">
+                    @foreach (var note in Path.Considerations)
+                    {
+                        <span class="row-top g-2 t-small">
+                            <SapIcon Name="alert-triangle" Size="16" />
+                            <span>@note</span>
+                        </span>
+                    }
+                </div>
+            </ChildContent>
+        </SapCard>
+    </div>
+
+    @Skills
+
+    <div class="grid grid-2">
+        <SapCard Title="What the work involves" Subtitle="Core tasks reported by people in this job">
+            <ChildContent>
+                <ul class="stack g-2" style="margin:0;padding-left:18px">
+                    @foreach (var task in Path.Tasks)
+                    {
+                        <li class="t-small">@task</li>
+                    }
+                </ul>
+            </ChildContent>
+        </SapCard>
+
+        <SapCard Title="Preparation" Subtitle="@Path.Preparation">
+            <ChildContent>
+                <div class="stack g-3">
+                    <span class="t-small">@Path.Education</span>
+                    @if (Path.Technologies.Count > 0)
+                    {
+                        <div class="stack g-2">
+                            <span class="t-caption t-subtle">Technologies employers name for this role</span>
+                            <div class="row g-2 wrap">
+                                @foreach (var tech in Path.Technologies)
+                                {
+                                    <span class="chip">@tech</span>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </ChildContent>
+        </SapCard>
+    </div>
+
+    @if (Path.Related.Count > 0)
+    {
+        <SapCard Title="Related careers">
+            <ChildContent>
+                <div class="row g-2 wrap">
+                    @foreach (var related in Path.Related)
+                    {
+                        <a class="chip" href="@($"/paths/{related.Id}")">@related.Title</a>
+                    }
+                </div>
+            </ChildContent>
+        </SapCard>
+    }
+</div>
+
+@code {
+    private bool _descOpen;
+
+    [Parameter, EditorRequired] public CareerPathDto Path { get; set; } = default!;
+
+    /// <summary>Buttons under the description, e.g. "Change career" or "Make this my target".</summary>
+    [Parameter] public RenderFragment? Actions { get; set; }
+
+    /// <summary>The skills section, placed right after the fit so gaps sit next to the reasoning.</summary>
+    [Parameter] public RenderFragment? Skills { get; set; }
+
+    public static string? RouteLabel(string? relevance) => relevance switch
+    {
+        "Primary" or "Core" => "Direct route from your course",
+        "Adjacent" => "Adjacent to your course",
+        _ => null,
+    };
+
+    public static string TierTone(string tier) => tier switch
+    {
+        "Safe" => "success",
+        "Stretch" => "primary",
+        _ => "info",
+    };
+}

@@ -1,0 +1,28 @@
+@namespace Sapling.Shared
+@inject NavigationManager Nav
+@inject IFormFactor FormFactor
+
+@code {
+    protected override void OnInitialized()
+    {
+        var target = Nav.ToBaseRelativePath(Nav.Uri);
+
+        // Institute and admin pages have their own sign-in, so send a signed-out visitor back to the door they came to.
+        var page = target switch
+        {
+            _ when target.StartsWith("institute", StringComparison.OrdinalIgnoreCase) => "/institute/signin",
+            _ when target.StartsWith("admin", StringComparison.OrdinalIgnoreCase) => "/admin/signin",
+            _ => "/signin",
+        };
+
+        var returnUrl = string.IsNullOrEmpty(target) || target.Contains("signin", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : $"?returnUrl=/{target}";
+
+        // The web sign-in page is static SSR, so it needs a real request; the MAUI WebView has no server to reload from.
+        Nav.NavigateTo(
+            $"{page}{returnUrl}",
+            forceLoad: FormFactor.Kind == FormFactorKind.Desktop,
+            replace: true);
+    }
+}

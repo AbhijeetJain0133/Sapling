@@ -1,0 +1,37 @@
+@namespace Sapling.Shared.Components
+
+<div class="stack g-1">
+    @if (Label is not null || ValueText is not null)
+    {
+        <div class="row between g-2">
+            <span class="t-small t-muted">@Label</span>
+            <span class="t-small" style="font-weight:600">@ValueText</span>
+        </div>
+    }
+    <div class="bar @(Small ? "bar-sm" : null) @ToneClass" role="progressbar"
+         aria-valuenow="@Percent" aria-valuemin="0" aria-valuemax="100" aria-label="@Label">
+        <i style="width:@Percent.ToString("0.#")%"></i>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public double Percent { get; set; }
+
+    [Parameter] public string? Label { get; set; }
+
+    [Parameter] public string? ValueText { get; set; }
+
+    [Parameter] public bool Small { get; set; }
+
+    [Parameter] public string Tone { get; set; } = "primary";
+
+    private string? ToneClass => Tone switch
+    {
+        "accent" => "bar-accent",
+        "success" => "bar-success",
+        "hue" => "bar-hue",
+        "green" => "bar-green",
+        "coral" => "bar-coral",
+        _ => null
+    };
+}

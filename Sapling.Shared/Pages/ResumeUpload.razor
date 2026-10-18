@@ -1,0 +1,125 @@
+@page "/resume/upload"
+@namespace Sapling.Shared.Pages
+@implements IDisposable
+@inject IResumeService Resumes
+@inject IFormFactor FormFactor
+@inject NavigationManager Nav
+
+<PageTitle>Upload resume · Sapling</PageTitle>
+<RecordVisit Feature="@FeatureCatalog.Resume" />
+
+@if (FormFactor.Platform != "Web")
+{
+    <ResumeWebOnly><a class="btn btn-secondary" href="/resume">Back to resumes</a></ResumeWebOnly>
+}
+else
+{
+    <div class="stack g-5" style="max-width:760px">
+        <div class="stack g-1">
+            <a class="t-small row g-1" href="/resume"><SapIcon Name="arrow-left" Size="14" /> Resumes</a>
+            <h1 style="font-size:26px;line-height:32px">Upload your resume</h1>
+            <span class="t-muted">
+                The AI scores it the way a recruiter and an applicant tracking system would, lists what to fix, and
+                re-types it in the template you pick so you can edit it straight away.
+            </span>
+        </div>
+
+        <div class="card stack g-4">
+            <div class="field">
+                <label>Template for the editable copy</label>
+                <ResumeTemplatePicker @bind-Value="_template" />
+                <span class="field-hint">Your content is copied as written. You can change anything afterwards.</span>
+            </div>
+
+            <label class="iv-drop" aria-busy="@(_busy ? "true" : "false")">
+                @if (_busy)
+                {
+                    <span class="rs-spinner" aria-hidden="true"></span>
+                    <span style="font-weight:600">@Stages[_stage]</span>
+                    <span class="t-caption t-subtle">This usually takes 20 to 60 seconds.</span>
+                }
+                else
+                {
+                    <SapIcon Name="upload" Size="26" />
+                    <span style="font-weight:600">Choose your resume PDF</span>
+                    <span class="t-caption t-subtle">PDF only, up to 5 MB. Text is read from the PDF; scanned images can't be read.</span>
+                    <InputFile accept=".pdf,application/pdf" OnChange="UploadAsync" aria-label="Choose resume PDF" />
+                }
+            </label>
+
+            @if (_error is not null)
+            {
+                <div class="row-top g-2 t-small" style="color:var(--error-text)">
+                    <SapIcon Name="alert-circle" Size="16" />
+                    <span>@_error</span>
+                </div>
+            }
+        </div>
+
+        <div class="card card-inset stack g-2">
+            <span class="t-overline t-subtle">What happens to your file</span>
+            <ul class="iv-list t-small t-muted">
+                <li>Only the text is kept. The PDF itself isn't stored.</li>
+                <li>The text is sent to the AI model to score it and copy it into sections.</li>
+                <li>No PDF handy? <a href="/resume/new">Build one step by step</a> instead.</li>
+            </ul>
+        </div>
+    </div>
+}
+
+@code {
+    private static readonly string[] Stages = ["Reading your PDF…", "Scoring it like a recruiter…", "Copying it into the template…", "Almost there…"];
+
+    private string _template = ResumeTemplates.SingleColumn;
+    private bool _busy;
+    private int _stage;
+    private string? _error;
+    private Timer? _timer;
+
+    private async Task UploadAsync(InputFileChangeEventArgs e)
+    {
+        _error = null;
+        const long max = 5 * 1024 * 1024;
+        if (e.File.Size > max)
+        {
+            _error = "That file is over 5 MB. Upload a smaller PDF.";
+            return;
+        }
+
+        _busy = true;
+        _stage = 0;
+        _timer = new Timer(_ => InvokeAsync(() =>
+        {
+            _stage = Math.Min(_stage + 1, Stages.Length - 1);
+            StateHasChanged();
+        }), null, TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(12));
+
+        try
+        {
+            using var buffer = new MemoryStream();
+            await using (var stream = e.File.OpenReadStream(max))
+            {
+                await stream.CopyToAsync(buffer);
+            }
+
+            var resume = await Resumes.ImportPdfAsync(e.File.Name, buffer.ToArray(), _template);
+            Nav.NavigateTo($"/resume/{resume.Id}?review=1");
+        }
+        catch (ResumeProblemException ex)
+        {
+            _error = ex.Message;
+        }
+        catch (IOException)
+        {
+            _error = "The upload didn't finish. Try again.";
+        }
+        finally
+        {
+            _busy = false;
+            _timer?.Dispose();
+            _timer = null;
+        }
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

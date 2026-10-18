@@ -1,0 +1,192 @@
+@namespace Sapling.Shared.Components
+@implements IDisposable
+@inject AssistantChat Chat
+@inject IAssistantService Assistant
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+@* Sapling AI: a launcher in the bottom-left corner that opens a small chat. Pages can open it with a question
+   through AssistantChat, and it stays out of the way on pages where the student is already mid-task. *@
+@if (Chat.IsOpen || !Hidden)
+{
+    <div class="chat-dock">
+        @if (Chat.IsOpen)
+        {
+            <section class="chat-panel" role="dialog" aria-label="Sapling AI">
+                <header class="chat-head">
+                    <span class="chat-avatar"><SapAiMark Size="22" OnDark /></span>
+                    <div class="stack grow" style="gap:0;min-width:0">
+                        <span class="chat-title">Sapling AI</span>
+                        <span class="chat-sub">Ask about careers, skills, resumes and interviews</span>
+                    </div>
+                    @if (Chat.Messages.Count > 0)
+                    {
+                        <button type="button" class="chat-icon-btn" title="Start a new chat" aria-label="Start a new chat" @onclick="Chat.Clear">
+                            <SapIcon Name="rotate-cw" Size="15" />
+                        </button>
+                    }
+                    <button type="button" class="chat-icon-btn" title="Close" aria-label="Close Sapling AI" @onclick="Chat.Close">
+                        <SapIcon Name="x" Size="16" />
+                    </button>
+                </header>
+
+                <div class="chat-log" @ref="_log" aria-live="polite">
+                    @if (Chat.Messages.Count == 0)
+                    {
+                        <div class="chat-empty">
+                            <span class="chat-empty-art hue-brand"><SapArt Name="assistant" /></span>
+                            <span class="chat-empty-title">Hi, I'm Sapling AI.</span>
+                            <span>I know your course, target role and missing skills, so ask me anything about getting there.</span>
+                            <div class="chat-suggest">
+                                @foreach (var idea in Ideas)
+                                {
+                                    <button type="button" class="chat-chip" @onclick="() => SendAsync(idea)">@idea</button>
+                                }
+                            </div>
+                        </div>
+                    }
+                    @foreach (var message in Chat.Messages)
+                    {
+                        @if (message.Role == "user")
+                        {
+                            <div class="chat-msg chat-msg-me">@message.Text</div>
+                        }
+                        else
+                        {
+                            @* Replies arrive as light markdown; ChatMarkup encodes the text and adds only its own tags. *@
+                            <div class="chat-msg chat-rich">@((MarkupString)ChatMarkup.ToHtml(message.Text))</div>
+                        }
+                    }
+                    @if (_busy)
+                    {
+                        <div class="chat-msg chat-typing" aria-label="Sapling AI is typing"><i></i><i></i><i></i></div>
+                    }
+                </div>
+
+                <form class="chat-form" @onsubmit="() => SendAsync(_draft)">
+                    <input class="chat-input" @ref="_input" @bind="_draft" @bind:event="oninput" maxlength="600"
+                           placeholder="Ask Sapling AI…" aria-label="Your question" autocomplete="off" />
+                    <button type="submit" class="chat-send" aria-label="Send" disabled="@(_busy || string.IsNullOrWhiteSpace(_draft))">
+                        <SapIcon Name="send" Size="16" Stroke="2" />
+                    </button>
+                </form>
+            </section>
+        }
+        else
+        {
+            <button type="button" class="chat-fab" @onclick="() => Chat.Open()" aria-label="Ask Sapling AI">
+                <SapAiMark Size="26" OnDark />
+                <span>Ask Sapling</span>
+            </button>
+        }
+    </div>
+}
+
+@code {
+    private static readonly string[] Ideas =
+    [
+        "Which skill should I learn first?",
+        "How do I prepare for interviews for my target role?",
+        "What can I add to my resume this month?",
+    ];
+
+    // The interview and the resume editor need the whole screen; profile is settings, not a place for questions.
+    private static readonly string[] HiddenOn = ["interview", "resume", "profile", "onboarding"];
+
+    private ElementReference _log;
+    private ElementReference _input;
+    private string _draft = "";
+    private bool _busy;
+    private bool _scroll;
+    private bool _focus;
+
+    private bool Hidden
+    {
+        get
+        {
+            var path = Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0];
+            return HiddenOn.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        Chat.Changed += OnChanged;
+        Nav.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) => InvokeAsync(StateHasChanged);
+
+    private void OnChanged() => InvokeAsync(async () =>
+    {
+        _scroll = _focus = Chat.IsOpen;
+        StateHasChanged();
+        if (Chat.TakePending() is { } ask)
+        {
+            await SendAsync(ask);
+        }
+    });
+
+    private async Task SendAsync(string? text)
+    {
+        text = text?.Trim();
+        if (_busy || string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        Chat.Messages.Add(new AssistantMessageDto("user", text));
+        _draft = "";
+        _busy = _scroll = true;
+        StateHasChanged();
+
+        try
+        {
+            var reply = await Assistant.AskAsync(Chat.Messages.ToList());
+            Chat.Messages.Add(new AssistantMessageDto("assistant", reply.Text));
+        }
+        catch (Exception)
+        {
+            Chat.Messages.Add(new AssistantMessageDto("assistant", "I couldn't reach Sapling AI. Check your connection and try again."));
+        }
+        finally
+        {
+            _busy = false;
+            _scroll = _focus = true;
+            StateHasChanged();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!Chat.IsOpen)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_scroll)
+            {
+                _scroll = false;
+                await JS.InvokeVoidAsync("sapling.chat.toEnd", _log);
+            }
+
+            if (_focus)
+            {
+                _focus = false;
+                await JS.InvokeVoidAsync("sapling.chat.focus", _input);
+            }
+        }
+        catch (Exception e) when (e is JSException or JSDisconnectedException or InvalidOperationException)
+        {
+            // Scrolling and focus are conveniences; the chat works without them (for example during prerender).
+        }
+    }
+
+    public void Dispose()
+    {
+        Chat.Changed -= OnChanged;
+        Nav.LocationChanged -= OnLocationChanged;
+    }
+}

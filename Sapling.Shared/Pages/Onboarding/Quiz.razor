@@ -1,0 +1,116 @@
+@page "/onboarding/quiz"
+@namespace Sapling.Shared.Pages.Onboarding
+@inject IQuizService QuizService
+@inject IProfileService Profiles
+@inject NavigationManager Nav
+
+<PageTitle>Interest check &middot; Sapling</PageTitle>
+
+<OnboardingFrame Step="3" Hue="interview" Art="onboarding-3" SideTitle="How you like to work shapes which roles rank higher." SideBlurb="Eighteen statements, about four minutes. There are no wrong answers.">
+
+    <div class="stack g-1">
+        <h1 style="font-size:28px;line-height:34px">How do you like to work?</h1>
+        <span class="t-muted">There are no wrong answers. Eighteen statements, about four minutes.</span>
+    </div>
+
+    @if (_questions.Count == 0)
+    {
+        <div class="card stack g-3">
+            <div class="skeleton" style="height:20px;width:70%"></div>
+            <div class="skeleton" style="height:44px"></div>
+        </div>
+    }
+    else
+    {
+        var question = _questions[_index];
+        <div class="card stack g-5">
+            <SegmentedTracker Total="_questions.Count" Completed="_index" Caption="@($"Question {_index + 1} of {_questions.Count}")" />
+
+            <h3 style="min-height:56px">@question.Text</h3>
+
+            <div class="scale">
+                @foreach (var option in Options)
+                {
+                    <button type="button" class="scale-btn scale-@option.Value" @onclick="() => AnswerAsync(question.Id, option.Value)">
+                        <span class="scale-dots" aria-hidden="true">
+                            @for (var d = 1; d <= 5; d++)
+                            {
+                                <i class="@(d <= option.Value ? "on" : null)"></i>
+                            }
+                        </span>
+                        @option.Label
+                    </button>
+                }
+            </div>
+
+            <div class="row between g-3">
+                <div class="row g-2">
+                    @if (_index > 0)
+                    {
+                        <button type="button" class="btn btn-ghost btn-sm" @onclick="Back">
+                            <SapIcon Name="chevron-left" Size="15" />
+                            Previous
+                        </button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn-ghost btn-sm" @onclick="GoBackToSkills">
+                            <SapIcon Name="chevron-left" Size="15" />
+                            Back
+                        </button>
+                    }
+                </div>
+                <button type="button" class="btn btn-ghost btn-sm" disabled="@_skipping" @onclick="SkipAsync">
+                    Skip
+                    <SapIcon Name="chevron-right" Size="15" />
+                </button>
+            </div>
+        </div>
+    }
+</OnboardingFrame>
+
+@code {
+    private static readonly (string Label, int Value)[] Options =
+    [
+        ("That is very much me", 5),
+        ("Mostly me", 4),
+        ("Sometimes", 3),
+        ("Not really", 2),
+        ("Not me at all", 1),
+    ];
+
+    private List<QuizQuestionDto> _questions = [];
+    private readonly Dictionary<int, int> _answers = [];
+    private int _index;
+    private bool _skipping;
+
+    protected override async Task OnInitializedAsync() =>
+        _questions = [.. await QuizService.GetQuestionsAsync()];
+
+    private async Task AnswerAsync(int questionId, int value)
+    {
+        _answers[questionId] = value;
+
+        if (_index < _questions.Count - 1)
+        {
+            _index++;
+            return;
+        }
+
+        await QuizService.SubmitAsync(new QuizSubmissionRequest(
+            _answers.Select(a => new QuizAnswerDto(a.Key, a.Value)).ToList()));
+        await Profiles.CompleteOnboardingAsync();
+        Nav.NavigateTo("/career");
+    }
+
+    private void Back() => _index = Math.Max(0, _index - 1);
+
+    private void GoBackToSkills() => Nav.NavigateTo("/onboarding/skills");
+
+    private async Task SkipAsync()
+    {
+        _skipping = true;
+        await Profiles.CompleteOnboardingAsync();
+        Nav.NavigateTo("/career");
+    }
+}

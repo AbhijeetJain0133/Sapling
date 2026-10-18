@@ -1,0 +1,264 @@
+@namespace Sapling.Shared.Components
+@inject IProfileService Profiles
+@implements IDisposable
+
+<div class="college-autocomplete-container" style="position:relative;width:100%">
+    <div style="position:relative;display:flex;align-items:center">
+        <input id="@Id"
+               class="input @Class"
+               style="padding-right:64px;width:100%"
+               type="text"
+               value="@Value"
+               @oninput="OnInput"
+               @onfocus="OnFocus"
+               @onblur="OnBlur"
+               @onkeydown="OnKeyDown"
+               placeholder="@Placeholder"
+               disabled="@Disabled"
+               autocomplete="off" />
+
+        <div style="position:absolute;right:8px;display:flex;align-items:center;gap:4px;z-index:2">
+            @if (_isSearching)
+            {
+                <span style="font-size:11px;color:var(--muted);font-weight:500">Searching…</span>
+            }
+            else if (!string.IsNullOrEmpty(Value) && !Disabled)
+            {
+                <button type="button" class="btn btn-ghost btn-icon btn-sm"
+                        style="height:26px;width:26px;padding:0;display:flex;align-items:center;justify-content:center;color:var(--muted);border-radius:50%"
+                        @onclick="ClearAsync" title="Clear college">
+                    <SapIcon Name="x" Size="14" />
+                </button>
+            }
+        </div>
+    </div>
+
+    @if (_showSuggestions && (_suggestions.Count > 0 || !string.IsNullOrWhiteSpace(Value)))
+    {
+        <div class="college-dropdown"
+             style="position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:999;max-height:340px;overflow-y:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:0 12px 36px rgba(0,0,0,0.22);padding:6px"
+             @onmousedown:preventDefault>
+
+            @if (_suggestions.Count > 0)
+            {
+                <div class="stack g-1">
+                    @for (var i = 0; i < _suggestions.Count; i++)
+                    {
+                        var college = _suggestions[i];
+                        var isHighlighted = i == _highlightedIndex;
+                        var index = i;
+
+                        <button type="button"
+                                class="college-item @(isHighlighted ? "highlighted" : "")"
+                                style="width:100%;text-align:left;padding:8px 10px;border-radius:var(--r-sm);border:none;background:@(isHighlighted ? "var(--surface-sunken)" : "transparent");cursor:pointer;display:flex;flex-direction:column;gap:4px;transition:background 0.1s ease"
+                                @onclick="() => SelectCollegeAsync(college)"
+                                @onmouseenter="() => _highlightedIndex = index">
+                            <div class="row between items-center g-2">
+                                <span style="font-weight:600;font-size:13px;color:var(--ink);line-height:1.35">
+                                    @college.Name
+                                </span>
+                                @if (!string.IsNullOrEmpty(college.Category))
+                                {
+                                    <span style="font-size:10px;padding:1px 6px;border-radius:10px;white-space:nowrap;font-weight:600;@GetCategoryStyle(college.Category)">
+                                        @college.Category
+                                    </span>
+                                }
+                            </div>
+
+                            <div class="row g-2 items-center wrap" style="font-size:11px">
+                                @if (!string.IsNullOrEmpty(college.City))
+                                {
+                                    <span class="badge" style="font-size:11px;padding:1px 6px;border-radius:4px;background:var(--surface-sunken);color:var(--muted)">
+                                        <SapIcon Name="map-pin" Size="11" />
+                                        @college.City
+                                    </span>
+                                }
+                                @if (!string.IsNullOrEmpty(college.State))
+                                {
+                                    <span class="badge" style="font-size:11px;padding:1px 6px;border-radius:4px;background:var(--primary-soft);color:var(--primary);font-weight:500">
+                                        @college.State
+                                    </span>
+                                }
+                                @if (!string.IsNullOrEmpty(college.AicteId) && !college.AicteId.StartsWith("IIT-") && !college.AicteId.StartsWith("NIT-"))
+                                {
+                                    <span style="color:var(--muted);font-size:10px">ID: @college.AicteId</span>
+                                }
+                            </div>
+                        </button>
+                    }
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(Value) && !HasExactMatch)
+            {
+                <div style="border-top:1px solid var(--line);margin-top:6px;padding-top:6px">
+                    <button type="button"
+                            class="college-item custom-entry"
+                            style="width:100%;text-align:left;padding:8px 10px;border-radius:var(--r-sm);border:none;background:transparent;cursor:pointer;display:flex;align-items:center;gap:8px;color:var(--primary)"
+                            @onclick="SelectCustomAsync">
+                        <SapIcon Name="edit-3" Size="14" />
+                        <span style="font-size:12px;font-weight:500">
+                            Use custom: <strong>"@Value"</strong>
+                        </span>
+                    </button>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public EventCallback<CollegeDto> OnCollegeSelected { get; set; }
+    [Parameter] public string? StateFilter { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "Type to search college (e.g. SGSITS, IIT, BITS, COEP, NIT...)";
+    [Parameter] public string Id { get; set; } = "college";
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+
+    private List<CollegeDto> _suggestions = [];
+    private bool _showSuggestions;
+    private bool _isSearching;
+    private int _highlightedIndex = -1;
+    private CancellationTokenSource? _searchCts;
+
+    private bool HasExactMatch => _suggestions.Any(s => string.Equals(s.Name, Value, StringComparison.OrdinalIgnoreCase));
+
+    private async Task OnInput(ChangeEventArgs e)
+    {
+        var raw = e.Value?.ToString() ?? "";
+        Value = raw;
+        await ValueChanged.InvokeAsync(raw);
+
+        _searchCts?.Cancel();
+        _searchCts?.Dispose();
+        _searchCts = new CancellationTokenSource();
+        var ct = _searchCts.Token;
+
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            _suggestions.Clear();
+            _showSuggestions = false;
+            _highlightedIndex = -1;
+            return;
+        }
+
+        _isSearching = true;
+        _highlightedIndex = -1;
+
+        try
+        {
+            await Task.Delay(100, ct);
+            var results = await Profiles.SearchCollegesAsync(raw, StateFilter, ct);
+            if (!ct.IsCancellationRequested)
+            {
+                _suggestions = results.ToList();
+                _showSuggestions = true;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Debounced
+        }
+        finally
+        {
+            _isSearching = false;
+        }
+    }
+
+    private void OnFocus()
+    {
+        if (!string.IsNullOrWhiteSpace(Value) && _suggestions.Count > 0)
+        {
+            _showSuggestions = true;
+        }
+    }
+
+    private async Task OnBlur()
+    {
+        // Short delay so mouse clicks on dropdown items can register
+        await Task.Delay(180);
+        _showSuggestions = false;
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (!_showSuggestions || _suggestions.Count == 0)
+        {
+            if (e.Key == "ArrowDown" && !string.IsNullOrWhiteSpace(Value))
+            {
+                _showSuggestions = true;
+                _highlightedIndex = 0;
+            }
+            return;
+        }
+
+        switch (e.Key)
+        {
+            case "ArrowDown":
+                _highlightedIndex = (_highlightedIndex + 1) % _suggestions.Count;
+                break;
+            case "ArrowUp":
+                _highlightedIndex = (_highlightedIndex - 1 + _suggestions.Count) % _suggestions.Count;
+                break;
+            case "Enter":
+                if (_highlightedIndex >= 0 && _highlightedIndex < _suggestions.Count)
+                {
+                    await SelectCollegeAsync(_suggestions[_highlightedIndex]);
+                }
+                else if (!string.IsNullOrWhiteSpace(Value))
+                {
+                    await SelectCustomAsync();
+                }
+                break;
+            case "Escape":
+                _showSuggestions = false;
+                _highlightedIndex = -1;
+                break;
+        }
+    }
+
+    private async Task SelectCollegeAsync(CollegeDto college)
+    {
+        Value = college.Name;
+        _showSuggestions = false;
+        _highlightedIndex = -1;
+
+        await ValueChanged.InvokeAsync(college.Name);
+        await OnCollegeSelected.InvokeAsync(college);
+    }
+
+    private async Task SelectCustomAsync()
+    {
+        _showSuggestions = false;
+        _highlightedIndex = -1;
+        await ValueChanged.InvokeAsync(Value);
+    }
+
+    private async Task ClearAsync()
+    {
+        Value = "";
+        _suggestions.Clear();
+        _showSuggestions = false;
+        _highlightedIndex = -1;
+        await ValueChanged.InvokeAsync("");
+    }
+
+    private static string GetCategoryStyle(string category)
+    {
+        if (category.Contains("National Importance", StringComparison.OrdinalIgnoreCase))
+            return "background:rgba(59,130,246,0.15);color:#2563eb;";
+        if (category.Contains("Premier", StringComparison.OrdinalIgnoreCase))
+            return "background:rgba(16,185,129,0.15);color:#059669;";
+        if (category.Contains("Polytechnic", StringComparison.OrdinalIgnoreCase))
+            return "background:rgba(245,158,11,0.15);color:#d97706;";
+        return "background:var(--surface-sunken);color:var(--muted);";
+    }
+
+    public void Dispose()
+    {
+        _searchCts?.Cancel();
+        _searchCts?.Dispose();
+    }
+}

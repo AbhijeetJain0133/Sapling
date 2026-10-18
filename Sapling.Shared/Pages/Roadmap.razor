@@ -1,0 +1,288 @@
+@page "/roadmap"
+@namespace Sapling.Shared.Pages
+@inject IRoadmapService Roadmaps
+
+<PageTitle>Roadmap · Sapling</PageTitle>
+<RecordVisit Feature="@FeatureCatalog.Roadmap" />
+
+<div class="stack g-5">
+    @if (_roadmap is null)
+    {
+        <div class="card"><div class="skeleton" style="height:200px"></div></div>
+    }
+    else if (_roadmap.Steps.Count == 0)
+    {
+        <h1 style="font-size:28px;line-height:34px">Your roadmap</h1>
+        <SapEmptyState Title="No courses for this role yet" Icon="route" Art="nothing-here" Hue="roadmap"
+                       Description="None of the skills this role asks for has an NPTEL or Microsoft Learn course we match yet.">
+            <a class="btn btn-primary" href="/paths">Explore career paths</a>
+        </SapEmptyState>
+    }
+    else
+    {
+        @* Stats stay put on the left; the steps scroll on the right. One column on narrow screens. *@
+        <div class="roadmap-layout">
+        <aside class="roadmap-side">
+            <section class="g-card hue-roadmap roadmap-panel">
+                <div class="roadmap-panel-top">
+                    <ScoreRing Value="@((int)Math.Round(Progress))" Size="104" Thickness="10" Label="Roadmap progress" OnLight />
+                    <div class="stack" style="gap:2px;min-width:0">
+                        <span class="t-overline">Your roadmap</span>
+                        <h1 class="roadmap-panel-h1">@_roadmap.RoleName</h1>
+                        <span class="t-small">@_roadmap.CompletedCheckpoints of @_roadmap.TotalCheckpoints checkpoints done</span>
+                    </div>
+                </div>
+                <div class="roadmap-panel-stats">
+                    <span><b>@_roadmap.Steps.Count(s => !s.Have)</b> to learn</span>
+                    <span><b>@_roadmap.Steps.Count(s => s.Have)</b> you have</span>
+                    <span><b>@_roadmap.Steps.Count(s => s.Course.Checkpoints.All(c => c.Done))</b> finished</span>
+                </div>
+            </section>
+
+            <div class="row between g-2 wrap">
+                <label class="row g-2 t-small t-muted" style="white-space:nowrap">
+                    Sort by
+                    <select class="select" style="width:auto" @bind="_sort">
+                        <option value="missing">Missing first</option>
+                        <option value="importance">Most important first</option>
+                        <option value="acquired">Acquired first</option>
+                    </select>
+                </label>
+                <a class="btn btn-ghost btn-sm" href="/paths">Change career</a>
+            </div>
+
+            <span class="t-caption t-subtle roadmap-note">
+                Courses: @_roadmap.Source. Where a skill has more than one course, only the one you follow counts towards
+                progress. "Builds the foundations" means the course teaches the subject beneath a tool, not the tool itself.
+            </span>
+        </aside>
+
+        <ol class="journey" style="--journey-done:@(Progress.ToString("0"))%">
+        @for (var i = 0; i < Ordered.Count; i++)
+        {
+            var step = Ordered[i];
+            var number = i + 1;
+            var key = StepKey(step);
+            var open = IsOpen(step, key);
+            var course = step.Course;
+            var doneCount = course.Checkpoints.Count(c => c.Done);
+            var finished = doneCount == course.Checkpoints.Count;
+
+            <li class="journey-step @(finished ? "done" : null) @(open ? "current" : null)" @key="key">
+            <div class="card stack g-4" style="@(open ? "border-color:var(--hue-roadmap-a)" : null)">
+                <div class="row-top between g-3 wrap journey-head">
+                    <div class="row-top g-3" style="min-width:0">
+                        <span class="row center t-num journey-num" style="width:38px;height:38px;flex:none;border-radius:var(--r-md);font-size:15px;
+                                     background:@(finished ? "var(--green)" : "var(--hue-roadmap-soft)");
+                                     color:@(finished ? "#fff" : "var(--hue-roadmap-text)")">
+                            @if (finished)
+                            {
+                                <SapIcon Name="check" Size="18" Stroke="2.5" />
+                            }
+                            else
+                            {
+                                @number
+                            }
+                        </span>
+                        <div class="stack g-1" style="min-width:0">
+                            <h4>@string.Join(", ", step.Skills.Select(s => s.Name))</h4>
+                            <div class="row g-2 wrap">
+                                @if (step.Have)
+                                {
+                                    <SapBadge Tone="success" Icon="check">You have this</SapBadge>
+                                }
+                                else
+                                {
+                                    <SapBadge Tone="@SeverityTone(step.Severity)">@step.Severity</SapBadge>
+                                }
+                                <span class="t-caption t-subtle" style="align-self:center">Importance @step.Impact/10</span>
+                                <SapBadge Tone="neutral" Icon="clock">About @Hours(course.Minutes) @(Hours(course.Minutes) == 1 ? "hour" : "hours")</SapBadge>
+                                @if (course.Match == "foundation")
+                                {
+                                    <span title="This course teaches the subject underneath, not the named tool itself.">
+                                        <SapBadge Tone="info">Builds the foundations</SapBadge>
+                                    </span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-ghost btn-sm journey-toggle" @onclick="() => Toggle(key, open)">
+                        <SapIcon Name="@(open ? "chevron-up" : "chevron-down")" Size="15" />
+                        @(open ? "Hide" : $"{doneCount} of {course.Checkpoints.Count} done")
+                    </button>
+                </div>
+
+                @if (open && step.Options.Count > 1)
+                {
+                    <div class="row g-2 wrap" role="group" aria-label="Choose a course">
+                        <span class="t-caption t-subtle">Learn with</span>
+                        @foreach (var option in step.Options)
+                        {
+                            var chosen = option.Id == course.Id;
+                            <button type="button" class="chip chip-button @(chosen ? "chip-selected" : "chip-claimed")" aria-pressed="@(chosen ? "true" : "false")"
+                                    disabled="@_busy" @onclick="() => ChooseAsync(option.Id, step)">
+                                @if (chosen)
+                                {
+                                    <SapIcon Name="check" Size="13" Stroke="2.5" />
+                                }
+                                @option.Provider
+                                @if (option.Checkpoints.Any(c => c.Done))
+                                {
+                                    <span class="t-caption">&middot; @option.Checkpoints.Count(c => c.Done)/@option.Checkpoints.Count</span>
+                                }
+                            </button>
+                        }
+                    </div>
+                }
+
+                @if (open)
+                {
+                <div class="row-top between g-3 wrap card card-inset">
+                    <div class="stack g-1" style="min-width:0">
+                        <a class="t-small" style="font-weight:600" href="@course.Url" target="_blank" rel="noopener noreferrer">
+                            @course.Provider: @course.Title <SapIcon Name="external-link" Size="13" />
+                        </a>
+                        <span class="t-caption t-subtle">@course.Byline &middot; @course.Lessons @LessonWord(course, course.Lessons)</span>
+                    </div>
+                    <LinearBar Percent="@(100.0 * doneCount / Math.Max(1, course.Checkpoints.Count))" ValueText="@($"{doneCount}/{course.Checkpoints.Count}")" Small="true" />
+                </div>
+                }
+
+                @if (open)
+                {
+                    var next = course.Checkpoints.FirstOrDefault(c => !c.Done);
+                    <div class="stack checkpoints">
+                        @foreach (var checkpoint in course.Checkpoints)
+                        {
+                            <label class="row-top g-3 checkpoint @(checkpoint.Done ? "is-done" : checkpoint == next ? "is-next" : null)" @key="checkpoint.Id">
+                                <input type="checkbox" checked="@checkpoint.Done" disabled="@_busy"
+                                       @onchange="e => SetAsync(checkpoint.Id, e.Value is true)" />
+                                <span class="stack grow" style="gap:0;min-width:0">
+                                    <span class="t-small checkpoint-title">@checkpoint.Title</span>
+                                    <span class="t-caption t-subtle checkpoint-meta">
+                                        @checkpoint.Lessons @CheckpointWord(course, checkpoint.Lessons)
+                                        @if (checkpoint.Minutes > 0)
+                                        {
+                                            <text> &middot; about @checkpoint.Minutes min</text>
+                                        }
+                                    </span>
+                                </span>
+                                @if (checkpoint.Done)
+                                {
+                                    <span class="checkpoint-tag">Done</span>
+                                }
+                                else if (checkpoint == next)
+                                {
+                                    <span class="checkpoint-tag">Up next</span>
+                                }
+                            </label>
+                        }
+                    </div>
+                }
+
+                @if (finished && !step.Have && course.Match == "foundation")
+                {
+                    <div class="row g-2 wrap">
+                        <span class="t-small">Foundations done. Once you've practised the tool itself:</span>
+                        @foreach (var skill in step.Skills.Where(s => !s.Have))
+                        {
+                            <button type="button" class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="() => AddSkillAsync(skill.Id)">
+                                I can use @skill.Name now
+                            </button>
+                        }
+                    </div>
+                }
+                else if (finished && course.Match == "direct")
+                {
+                    <span class="t-small" style="color:var(--success-text)">
+                        <SapIcon Name="check-circle" Size="15" /> Course finished. @string.Join(", ", step.Skills.Select(s => s.Name)) @(step.Skills.Count == 1 ? "is" : "are") on your skills.
+                    </span>
+                }
+            </div>
+            </li>
+        }
+        </ol>
+        </div>
+    }
+</div>
+
+@code {
+    private RoadmapDto? _roadmap;
+    private bool _busy;
+    private string _sort = "missing";
+
+    // One step is open at a time. Until the student picks one, it is the first unfinished missing skill.
+    private bool _picked;
+    private string? _openKey;
+
+    // The server sends missing-first; the other orders are re-sorts of the same steps.
+    private List<RoadmapStepDto> Ordered => _sort switch
+    {
+        "importance" => _roadmap!.Steps.OrderByDescending(s => s.Impact).ThenBy(s => s.Have).ToList(),
+        "acquired" => _roadmap!.Steps.OrderByDescending(s => s.Have).ThenByDescending(s => s.Impact).ToList(),
+        _ => _roadmap!.Steps.OrderBy(s => s.Have).ThenByDescending(s => s.Impact).ToList(),
+    };
+
+    private double Progress => _roadmap is { TotalCheckpoints: > 0 }
+        ? 100.0 * _roadmap.CompletedCheckpoints / _roadmap.TotalCheckpoints
+        : 0;
+
+    protected override async Task OnInitializedAsync() => _roadmap = await Roadmaps.GetAsync();
+
+    private static string StepKey(RoadmapStepDto step) => $"step-{string.Join('-', step.Skills.Select(s => s.Id))}";
+
+    private bool IsOpen(RoadmapStepDto step, string key)
+    {
+        if (_picked)
+        {
+            return key == _openKey;
+        }
+
+        var firstUnfinished = _roadmap!.Steps
+            .OrderBy(s => s.Have)
+            .ThenByDescending(s => s.Impact)
+            .FirstOrDefault(s => s.Course.Checkpoints.Any(p => !p.Done));
+        return firstUnfinished is not null && StepKey(firstUnfinished) == key;
+    }
+
+    private void Toggle(string key, bool open)
+    {
+        _picked = true;
+        _openKey = open ? null : key;
+    }
+
+    private Task SetAsync(int checkpointId, bool done) => RunAsync(() => Roadmaps.SetCheckpointAsync(checkpointId, done));
+
+    private Task AddSkillAsync(int skillId) => RunAsync(() => Roadmaps.AddSkillAsync(skillId));
+
+    private Task ChooseAsync(int courseId, RoadmapStepDto step) =>
+        RunAsync(() => Roadmaps.ChooseCourseAsync(courseId, step.Skills.Select(s => s.Id).ToList()));
+
+    private async Task RunAsync(Func<Task<RoadmapDto>> action)
+    {
+        _busy = true;
+        try
+        {
+            _roadmap = await action();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static int Hours(int minutes) => Math.Max(1, (int)Math.Round(minutes / 60.0));
+
+    private static string LessonWord(RoadmapCourseDto course, int count) =>
+        course.Provider == "NPTEL" ? (count == 1 ? "lecture" : "lectures") : (count == 1 ? "module" : "modules");
+
+    private static string CheckpointWord(RoadmapCourseDto course, int count) =>
+        course.Provider == "NPTEL" ? (count == 1 ? "lecture" : "lectures") : (count == 1 ? "unit" : "units");
+
+    private static string SeverityTone(string severity) => severity switch
+    {
+        "Critical" => "error",
+        "Important" => "warn",
+        _ => "neutral",
+    };
+}

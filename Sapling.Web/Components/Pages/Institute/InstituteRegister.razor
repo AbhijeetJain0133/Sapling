@@ -1,0 +1,197 @@
+@page "/institute/register"
+@namespace Sapling.Web.Components.Pages.Institute
+@layout InstituteAuthLayout
+@attribute [AllowAnonymous]
+@attribute [ExcludeFromInteractiveRouting]
+@using Microsoft.AspNetCore.Components.Endpoints
+@using Microsoft.AspNetCore.Identity
+@using Sapling.Web.Data
+@using Sapling.Web.Services
+@inject AccountFlowService Flow
+@inject SignInManager<AppUser> SignInManager
+@inject NavigationManager Nav
+@inject ITurnstileService Turnstile
+
+<PageTitle>Register your college · Sapling</PageTitle>
+
+<div class="stack g-5">
+    <div class="stack g-1">
+        <h3>Register your college</h3>
+        <span class="t-small t-subtle">@StepHint</span>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="badge badge-error" role="alert" style="padding:10px 14px;border-radius:var(--r-md);white-space:normal">
+            <SapIcon Name="alert-circle" Size="15" />
+            @_error
+        </div>
+    }
+    else if (_notice is not null)
+    {
+        <div class="badge badge-success" role="status" style="padding:10px 14px;border-radius:var(--r-md);white-space:normal">
+            @_notice
+        </div>
+    }
+
+    @* Static rendering keeps no state between posts, so earlier answers ride along in hidden fields. *@
+    <EditForm Model="Input" method="post" OnSubmit="SubmitAsync" FormName="institute-register" Enhance="false" class="stack g-4">
+        <input type="hidden" name="Input.Step" value="@Input.Step" />
+
+        @if (Input.Step == StepEmail)
+        {
+            <div class="field">
+                <label for="contact">Your name</label>
+                <InputText id="contact" class="input" @bind-Value="Input.ContactName" autocomplete="name" placeholder="Training and Placement Officer" />
+            </div>
+
+            <div class="field">
+                <label for="email">Official college email</label>
+                <InputText id="email" type="email" class="input" @bind-Value="Input.Email" autocomplete="email" placeholder="placement@college.ac.in" />
+                <span class="field-hint">We will email a 6-digit code to confirm the address belongs to your college.</span>
+            </div>
+
+            <SapTurnstile />
+
+            <button type="submit" name="Input.Action" value="send" class="btn btn-primary btn-block">Send code</button>
+        }
+        else
+        {
+            <input type="hidden" name="Input.ContactName" value="@Input.ContactName" />
+            <input type="hidden" name="Input.Email" value="@Input.Email" />
+        }
+
+        @if (Input.Step == StepCode)
+        {
+            <div class="field">
+                <label for="code">Verification code</label>
+                <InputText id="code" class="input otp-input" @bind-Value="Input.Code" inputmode="numeric"
+                           autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" placeholder="000000" autofocus />
+            </div>
+
+            <button type="submit" name="Input.Action" value="verify" class="btn btn-primary btn-block">Verify email</button>
+
+            <div class="row between g-2 wrap">
+                <button type="submit" name="Input.Action" value="back" class="btn btn-ghost btn-sm">Use a different email</button>
+                <button type="submit" name="Input.Action" value="resend" class="btn btn-ghost btn-sm">Resend code</button>
+            </div>
+        }
+
+        @if (Input.Step == StepPassword)
+        {
+            <input type="hidden" name="Input.Ticket" value="@Input.Ticket" />
+
+            <div class="field">
+                <label for="password">Password</label>
+                <InputText id="password" type="password" class="input" @bind-Value="Input.Password" autocomplete="new-password" autofocus />
+                <span class="field-hint">At least 8 characters, with an uppercase letter, a lowercase letter and a digit.</span>
+            </div>
+
+            <button type="submit" name="Input.Action" value="create" class="btn btn-primary btn-block">Create institute account</button>
+        }
+    </EditForm>
+
+    <span class="t-small t-muted" style="text-align:center">
+        Already registered? <a href="/institute/signin">Sign in</a>
+    </span>
+</div>
+
+@code {
+    private const string StepEmail = "email";
+    private const string StepCode = "code";
+    private const string StepPassword = "password";
+
+    [SupplyParameterFromForm] private RegisterInput Input { get; set; } = default!;
+
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
+    private string? _error;
+    private string? _notice;
+
+    private string StepHint => Input.Step switch
+    {
+        StepCode => $"Enter the 6-digit code we sent to {Input.Email}. It expires in 10 minutes.",
+        StepPassword => $"{Input.Email} is verified. Choose a password to finish.",
+        _ => "One account per college. You pick which college on the next screen.",
+    };
+
+    protected override void OnInitialized() => Input ??= new();
+
+    private async Task SubmitAsync()
+    {
+        Input.Email = AccountFlowService.Clean(Input.Email);
+
+        switch (Input.Action)
+        {
+            case "send":
+            case "resend":
+                if (string.IsNullOrWhiteSpace(Input.ContactName))
+                {
+                    Show(AccountFlowResult.Fail("Enter the name of whoever will manage this account."), StepEmail);
+                    return;
+                }
+
+                var token = HttpContext?.Request.Form["cf-turnstile-response"].ToString();
+                if (!await Turnstile.VerifyAsync(token, HttpContext?.Connection.RemoteIpAddress?.ToString()))
+                {
+                    Show(AccountFlowResult.Fail("We could not verify you are human. Please try again."), StepEmail);
+                    return;
+                }
+
+                var sent = await Flow.SendRegistrationCodeAsync(Input.Email);
+                Show(sent, sent.Succeeded ? StepCode : Input.Action == "send" ? StepEmail : StepCode);
+                if (sent.Succeeded && Input.Action == "resend")
+                {
+                    _notice = "A new code is on its way. Only the latest code works.";
+                }
+                break;
+
+            case "back":
+                Input.Code = "";
+                Input.Step = StepEmail;
+                break;
+
+            case "verify":
+                var verified = Flow.VerifyCode(CodePurposes.Register, Input.Email, Input.Code);
+                Input.Ticket = verified.Ticket ?? "";
+                Show(verified, verified.Succeeded ? StepPassword : StepCode);
+                break;
+
+            case "create":
+                var (user, created) = await Flow.CompleteRegistrationAsync(
+                    Input.Email, Input.Ticket, Input.Password, Input.ContactName, AccountTypes.Institution);
+
+                if (user is not null)
+                {
+                    await SignInManager.SignInAsync(user, isPersistent: true);
+                    Nav.NavigateTo("/institute/setup");
+                    return;
+                }
+
+                Input.Password = "";
+                Show(created, created.Restart ? StepEmail : StepPassword);
+                break;
+
+            default:
+                Input.Step = StepEmail;
+                break;
+        }
+    }
+
+    private void Show(AccountFlowResult result, string step)
+    {
+        _error = result.Error;
+        Input.Step = step;
+    }
+
+    private sealed class RegisterInput
+    {
+        public string Step { get; set; } = "email";
+        public string Action { get; set; } = "";
+        public string ContactName { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Code { get; set; } = "";
+        public string Ticket { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+}

@@ -1,0 +1,26 @@
+@namespace Sapling.Web.Components.Shared
+
+<div class="stack g-1">
+    <div class="row g-2 wrap">
+        <span style="font-weight:600;font-size:13px">@Comment.AuthorName</span>
+        @if (Comment.IsInstitution)
+        {
+            <SapBadge Tone="primary">You</SapBadge>
+        }
+        @if (!string.IsNullOrWhiteSpace(Comment.AuthorHeadline))
+        {
+            <span class="t-caption t-subtle">@Comment.AuthorHeadline</span>
+        }
+        <span class="t-caption t-subtle">· @CommunityDisplay.Ago(Comment.PostedAt)</span>
+        <button type="button" class="btn btn-ghost btn-icon btn-sm t-error" title="Delete comment" @onclick="OnDelete">
+            <SapIcon Name="trash" Size="13" />
+        </button>
+    </div>
+    <span class="t-small" style="white-space:pre-wrap">@Comment.Body</span>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public CommunityCommentDto Comment { get; set; } = default!;
+
+    [Parameter] public EventCallback OnDelete { get; set; }
+}

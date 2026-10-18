@@ -1,0 +1,985 @@
+@page "/interview/{Id:int}/live"
+@namespace Sapling.Shared.Pages
+@layout EmptyLayout
+@implements IAsyncDisposable
+@inject IInterviewService Interviews
+@inject IProfileService Profiles
+@inject IFormFactor FormFactor
+@inject IJSRuntime Js
+@inject NavigationManager Nav
+
+<PageTitle>Interview · Sapling</PageTitle>
+<RecordVisit Feature="@FeatureCatalog.Interview" />
+
+@* Full-screen meeting room: no app navigation while the interview runs. Answers are spoken only. *@
+<div class="mt-room">
+    <header class="mt-top">
+        <div class="mt-title">
+            <SapLogo Size="28" ShowWord="false" />
+            <div>
+                <b>@(_interview?.RoleTitle ?? "Mock interview")</b>
+                <span>Mock interview with Sapling AI</span>
+            </div>
+        </div>
+        @if (InRoom)
+        {
+            <div class="row g-2">
+                <span class="mt-pill" style="color:var(--primary-text)">@PhaseLabel</span>
+                <span class="mt-pill" title="Time in the interview">
+                    <i class="mt-rec"></i>
+                    <span class="t-num" id="mt-timer">00:00</span>
+                    <span class="t-subtle" style="font-weight:500">/ ~@TargetMinutes min</span>
+                </span>
+            </div>
+        }
+    </header>
+
+    @if (FormFactor.Platform != "Web")
+    {
+        <div class="stack center g-3 text-center" style="padding:var(--sp-6)">
+            <h3>Open Sapling on the web</h3>
+            <span class="t-muted" style="max-width:40ch">Voice interviews run in Chrome or Edge on the Sapling website. Your reports are available in the app once you finish.</span>
+            <a class="btn btn-secondary" href="/interview">Back to interviews</a>
+        </div>
+    }
+    else if (_interview is null || _stage == "loading")
+    {
+        <div class="stack center" style="padding:var(--sp-6)"><div class="skeleton" style="width:min(900px,90vw);height:50vh;border-radius:20px"></div></div>
+    }
+    else if (_stage == "lobby")
+    {
+        <div class="mt-lobby">
+            <div class="stack g-3">
+                <div class="mt-preview">
+                    @if (_camOn)
+                    {
+                        <video @ref="_video" autoplay playsinline muted></video>
+                    }
+                    else
+                    {
+                        <div class="mt-self-empty stack g-2">
+                            <UserFace Name="@_name" PhotoUrl="@_avatarUrl" Size="96" />
+                            <span class="t-small t-subtle">Camera is off</span>
+                        </div>
+                    }
+                    <div class="mt-preview-tools">
+                        <button type="button" class="mt-btn @(_muted ? "off" : null)" @onclick="ToggleMuteAsync" disabled="@(_micState != "ok")"
+                                title="@(_muted ? "Unmute" : "Mute")" aria-label="@(_muted ? "Unmute microphone" : "Mute microphone")">
+                            <SapIcon Name="@(_muted ? "mic-off" : "mic")" Size="20" />
+                        </button>
+                        <button type="button" class="mt-btn @(_camOn ? null : "off")" @onclick="ToggleCameraAsync" disabled="@(!_caps.Camera)"
+                                title="@(_camOn ? "Turn camera off" : "Turn camera on")" aria-label="@(_camOn ? "Turn camera off" : "Turn camera on")">
+                            <SapIcon Name="@(_camOn ? "video" : "video-off")" Size="20" />
+                        </button>
+                    </div>
+                    <span class="mt-self-mic @(_muted ? "muted" : null)" aria-hidden="true"><SapIcon Name="@(_muted ? "mic-off" : "mic")" Size="14" /></span>
+                </div>
+
+                <div class="mt-device-grid">
+                    <div class="field">
+                        <label for="dev-mic">Microphone</label>
+                        <select id="dev-mic" class="select" value="@_devices.Mic" @onchange="MicChangedAsync" disabled="@(_devices.Mics.Count == 0)">
+                            @foreach (var d in _devices.Mics)
+                            {
+                                <option value="@d.Id">@d.Label</option>
+                            }
+                        </select>
+                        <div class="mic-meter" title="Microphone level"><i></i></div>
+                    </div>
+                    <div class="field">
+                        <label for="dev-speaker">Speaker</label>
+                        @if (_devices.CanPickSpeaker && _devices.Speakers.Count > 0)
+                        {
+                            <div class="row g-2">
+                                <select id="dev-speaker" class="select grow" value="@_devices.Speaker" @onchange="SpeakerChangedAsync">
+                                    @foreach (var d in _devices.Speakers)
+                                    {
+                                        <option value="@d.Id">@d.Label</option>
+                                    }
+                                </select>
+                                <button type="button" class="btn btn-secondary btn-icon" @onclick="TestSpeakerAsync" title="Play a test sound" aria-label="Play a test sound">
+                                    <SapIcon Name="volume" Size="18" />
+                                </button>
+                            </div>
+                        }
+                        else
+                        {
+                            <span class="select" style="display:flex;align-items:center;color:var(--muted)">System default speaker</span>
+                        }
+                    </div>
+                    <div class="field">
+                        <label for="dev-camera">Camera</label>
+                        <select id="dev-camera" class="select" value="@_devices.Camera" @onchange="CameraChangedAsync" disabled="@(_devices.Cameras.Count == 0)">
+                            @if (_devices.Cameras.Count == 0)
+                            {
+                                <option value="">No camera found</option>
+                            }
+                            @foreach (var d in _devices.Cameras)
+                            {
+                                <option value="@d.Id">@d.Label</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-lobby-side">
+                <div class="stack g-1">
+                    <h2 style="font-size:28px;line-height:34px">Ready to join?</h2>
+                    <span class="t-muted">@(_interview.Turns.Count == 0 ? "Check your microphone, speaker and camera, then join." : "Pick up where you left off.")</span>
+                </div>
+
+                <ul class="mt-facts">
+                    <li><SapIcon Name="briefcase" Size="18" /> @_interview.RoleTitle</li>
+                    <li><SapIcon Name="clock" Size="18" /> About @TargetMinutes minutes; Sapling AI may finish a little earlier or later</li>
+                    <li><SapIcon Name="file-text" Size="18" /> @(_interview.HasResume ? "Sapling AI has your resume" : "No resume: questions use your profile")</li>
+                    <li><SapIcon Name="mic" Size="18" /> Answer out loud; your answer is sent after a few seconds of silence</li>
+                </ul>
+
+                <div class="row g-2 wrap">
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="PreviewVoiceAsync">
+                        <SapIcon Name="play" Size="15" />
+                        Hear the interviewer's voice
+                    </button>
+                    <span class="field-hint">Check you can hear it before you join.</span>
+                </div>
+
+                @if (JoinBlocker is { } blocker)
+                {
+                    <div class="mt-banner error">
+                        <SapIcon Name="alert-circle" Size="16" />
+                        <span class="grow">@blocker</span>
+                        @if (_micState is "not-allowed" or "unavailable")
+                        {
+                            <button type="button" class="btn btn-secondary btn-sm" @onclick="RetryMicAsync">Try again</button>
+                        }
+                    </div>
+                }
+                else if (_lobbyNote is not null)
+                {
+                    <div class="mt-banner"><SapIcon Name="info" Size="16" /><span>@_lobbyNote</span></div>
+                }
+
+                <div class="row g-3 wrap">
+                    <button type="button" class="btn btn-primary btn-lg" @onclick="JoinAsync" disabled="@(_joining || JoinBlocker is not null)">
+                        <SapIcon Name="mic" Size="18" />
+                        @(_interview.Turns.Count == 0 ? "Join interview" : "Rejoin interview")
+                    </button>
+                    <a class="btn btn-ghost" href="/interview">Back</a>
+                </div>
+
+                <span class="t-caption t-subtle">
+                    Headphones stop the interviewer's voice being heard as your answer. The camera is only shown to you: it isn't recorded or sent to the interviewer.
+                </span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="mt-main @(_panelOpen ? null : "no-panel")">
+            <section class="mt-stage" aria-label="Interview">
+                @if (_stage == "error")
+                {
+                    <div class="mt-banner error mt-banner-float">
+                        <SapIcon Name="alert-circle" Size="16" />
+                        <span class="grow">@_error</span>
+                        <button type="button" class="btn btn-secondary btn-sm" @onclick="RetryAsync">Try again</button>
+                    </div>
+                }
+                else if (_micProblem is not null)
+                {
+                    <div class="mt-banner error mt-banner-float">
+                        <SapIcon Name="alert-circle" Size="16" />
+                        <span class="grow">@_micProblem</span>
+                        <button type="button" class="btn btn-secondary btn-sm" @onclick="RetryListeningAsync">Try again</button>
+                    </div>
+                }
+                else if (_hint is not null)
+                {
+                    <div class="mt-banner mt-banner-float"><SapIcon Name="info" Size="16" /><span>@_hint</span></div>
+                }
+
+                <InterviewerAvatar State="@AvatarState" />
+
+                @if (!_panelOpen && Caption is { } caption)
+                {
+                    <div class="mt-caption @(caption.Mine ? "me" : null)">@caption.Text</div>
+                }
+
+                <div class="mt-chips">
+                    <span class="mt-chip name">Sapling AI · Interviewer</span>
+                    <span class="mt-chip" data-state="@(_muted && _stage == "listening" ? "muted" : AvatarState)">@StateLabel</span>
+                </div>
+
+                <div class="mt-self" id="self-tile">
+                    @if (_camOn)
+                    {
+                        <video @ref="_video" autoplay playsinline muted></video>
+                    }
+                    else
+                    {
+                        <div class="mt-self-empty"><UserFace Name="@_name" PhotoUrl="@_avatarUrl" Size="52" /></div>
+                    }
+                    <div class="mt-chips"><span class="mt-chip">You</span></div>
+                    <span class="mt-self-mic @(_muted ? "muted" : null)" title="@(_muted ? "Muted" : "Microphone on")">
+                        <SapIcon Name="@(_muted ? "mic-off" : "mic")" Size="14" />
+                    </span>
+                </div>
+            </section>
+
+            @if (_panelOpen)
+            {
+                <aside class="mt-panel" aria-label="Transcript">
+                    <div class="mt-panel-head">
+                        <span><SapIcon Name="captions" Size="16" /> Transcript</span>
+                        <button type="button" class="btn btn-ghost btn-icon btn-sm" @onclick="() => _panelOpen = false" aria-label="Close transcript">
+                            <SapIcon Name="x" Size="16" />
+                        </button>
+                    </div>
+                    <div class="iv-transcript" @ref="_scroller" aria-live="polite">
+                        @foreach (var turn in _turns)
+                        {
+                            var me = turn.Speaker == "Candidate";
+                            <div class="iv-turn @(me ? "me" : null)">
+                                <span>@(me ? "You" : "Sapling AI")</span>
+                                <div>@turn.Text</div>
+                            </div>
+                        }
+                        @if (_stage == "listening" && !string.IsNullOrWhiteSpace(_heard))
+                        {
+                            <div class="iv-turn me live">
+                                <span>You (speaking)</span>
+                                <div>@_heard</div>
+                            </div>
+                        }
+                    </div>
+                    @if (_stage == "listening")
+                    {
+                        <div class="mt-panel-foot t-caption t-subtle">
+                            @(_muted ? "You're muted. Unmute to carry on answering." : "Speak your answer. It's sent after a few seconds of silence, or press \"Done answering\".")
+                        </div>
+                    }
+                </aside>
+            }
+        </div>
+
+        <footer class="mt-controls">
+            @if (_menu is not null)
+            {
+                <div class="mt-menu-scrim" @onclick="() => _menu = null"></div>
+                <div class="mt-menu" role="dialog" aria-label="@(_menu == "mic" ? "Audio settings" : "Camera settings")">
+                    @if (_menu == "mic")
+                    {
+                        <label class="mt-menu-row">
+                            <SapIcon Name="mic" Size="18" />
+                            <select class="select" value="@_devices.Mic" @onchange="MicChangedAsync" aria-label="Microphone">
+                                @foreach (var d in _devices.Mics)
+                                {
+                                    <option value="@d.Id">@d.Label</option>
+                                }
+                            </select>
+                        </label>
+                        @if (_devices.CanPickSpeaker && _devices.Speakers.Count > 0)
+                        {
+                            <label class="mt-menu-row">
+                                <SapIcon Name="volume" Size="18" />
+                                <select class="select" value="@_devices.Speaker" @onchange="SpeakerChangedAsync" aria-label="Speaker">
+                                    @foreach (var d in _devices.Speakers)
+                                    {
+                                        <option value="@d.Id">@d.Label</option>
+                                    }
+                                </select>
+                            </label>
+                        }
+                        <div class="mic-meter" title="Microphone level"><i></i></div>
+                    }
+                    else
+                    {
+                        <label class="mt-menu-row">
+                            <SapIcon Name="video" Size="18" />
+                            <select class="select" value="@_devices.Camera" @onchange="CameraChangedAsync" aria-label="Camera" disabled="@(_devices.Cameras.Count == 0)">
+                                @if (_devices.Cameras.Count == 0)
+                                {
+                                    <option value="">No camera found</option>
+                                }
+                                @foreach (var d in _devices.Cameras)
+                                {
+                                    <option value="@d.Id">@d.Label</option>
+                                }
+                            </select>
+                        </label>
+                    }
+                </div>
+            }
+
+            <div class="mt-split">
+                <button type="button" class="mt-btn mt-caret" @onclick='() => OpenMenuAsync("mic")' aria-label="Audio settings" title="Audio settings">
+                    <SapIcon Name="@(_menu == "mic" ? "chevron-down" : "chevron-up")" Size="16" />
+                </button>
+                <button type="button" class="mt-btn @(_muted ? "off" : null)" @onclick="ToggleMuteAsync"
+                        title="@(_muted ? "Unmute" : "Mute")" aria-label="@(_muted ? "Unmute microphone" : "Mute microphone")">
+                    <SapIcon Name="@(_muted ? "mic-off" : "mic")" Size="20" />
+                </button>
+            </div>
+            <div class="mt-split">
+                <button type="button" class="mt-btn mt-caret" @onclick='() => OpenMenuAsync("camera")' aria-label="Camera settings" title="Camera settings" disabled="@(!_caps.Camera)">
+                    <SapIcon Name="@(_menu == "camera" ? "chevron-down" : "chevron-up")" Size="16" />
+                </button>
+                <button type="button" class="mt-btn @(_camOn ? null : "off")" @onclick="ToggleCameraAsync" disabled="@(!_caps.Camera)"
+                        title="@(_camOn ? "Turn camera off" : "Turn camera on")" aria-label="@(_camOn ? "Turn camera off" : "Turn camera on")">
+                    <SapIcon Name="@(_camOn ? "video" : "video-off")" Size="20" />
+                </button>
+            </div>
+            <button type="button" class="mt-btn @(_panelOpen ? "on" : null)" @onclick="() => _panelOpen = !_panelOpen"
+                    title="Transcript" aria-label="@(_panelOpen ? "Hide transcript" : "Show transcript")">
+                <SapIcon Name="captions" Size="20" />
+            </button>
+
+            @if (_stage == "listening")
+            {
+                <button type="button" class="mt-btn" @onclick="RepeatAsync" title="Repeat the question" aria-label="Repeat the question">
+                    <SapIcon Name="refresh" Size="19" />
+                </button>
+                <button type="button" class="mt-btn wide primary" @onclick="DoneAnsweringAsync">
+                    <SapIcon Name="check" Size="18" /> Done answering
+                </button>
+            }
+            else if (_stage == "finishing")
+            {
+                <span class="mt-pill">Writing your report…</span>
+            }
+
+            <button type="button" class="mt-btn end" @onclick="() => _confirmEnd = true" disabled="@(_stage == "finishing")"
+                    title="End interview" aria-label="End interview">
+                <SapIcon Name="phone" Size="22" />
+            </button>
+        </footer>
+    }
+
+    @if (_confirmEnd)
+    {
+        <SapModal Title="End the interview now?" OnClose="() => _confirmEnd = false">
+            <ChildContent>
+                <span class="t-small t-muted">Your report will cover the questions answered so far. You can't continue this interview afterwards.</span>
+            </ChildContent>
+            <Footer>
+                <button type="button" class="btn btn-ghost" @onclick="() => _confirmEnd = false">Keep going</button>
+                <button type="button" class="btn btn-danger" @onclick="EndNowAsync">End and see report</button>
+            </Footer>
+        </SapModal>
+    }
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private sealed record Turn(string Speaker, string Text);
+
+    private sealed record Caps(bool Tts, bool Stt, bool SecureContext, bool Camera, bool Narrow);
+
+    private sealed record HeardAnswer(string Text, AnswerMetricsDto Metrics);
+
+
+    private sealed record Device(string Id, string Label);
+
+    private sealed record DeviceList(
+        List<Device> Mics, List<Device> Speakers, List<Device> Cameras,
+        string Mic, string Speaker, string Camera, bool CanPickSpeaker);
+
+    private InterviewDto? _interview;
+    private readonly List<Turn> _turns = [];
+    private InterviewerLineDto? _line;
+    private DotNetObjectReference<InterviewLive>? _ref;
+    private ElementReference _scroller;
+    private ElementReference _video;
+    private bool _jsReady;
+    private Caps _caps = new(true, true, true, true, false);
+    private DeviceList _devices = new([], [], [], "", "", "", false);
+    private string _name = "";
+    private string? _avatarUrl;
+
+    /// <summary>loading | lobby | thinking | speaking | listening | finishing | error</summary>
+    private string _stage = "loading";
+
+    /// <summary>ok | not-allowed | unavailable | unsupported | pending</summary>
+    private string _micState = "pending";
+
+    private string _heard = "";
+    private bool _muted;
+    private string? _hint;
+    private string? _lobbyNote;
+    private string? _error;
+    private string? _micProblem;
+    private bool _retryFinish;
+    private bool _confirmEnd;
+    private bool _joining;
+    private bool _camOn;
+    private bool _camPending;
+    private string? _camDevice;
+    private bool _panelOpen = true;
+    private bool _timerStarted;
+    private string? _menu;
+
+    private bool InRoom => _stage is not ("loading" or "lobby");
+
+    private int TargetMinutes => _line?.TargetMinutes ?? _interview?.TargetMinutes ?? 20;
+
+    private string PhaseLabel => (_line?.Phase ?? _interview?.Phase) switch
+    {
+        "Background" => "Your background",
+        "Technical" => "Technical",
+        "Behavioural" => "Behavioural",
+        "Closing" => "Wrapping up",
+        _ => "Introduction",
+    };
+
+    private string AvatarState => _stage switch
+    {
+        "speaking" => "speaking",
+        "listening" => "listening",
+        "thinking" or "finishing" => "thinking",
+        _ => "idle",
+    };
+
+    private string StateLabel => _stage switch
+    {
+        "speaking" => "SPEAKING…",
+        "listening" => _muted ? "YOU'RE MUTED" : "LISTENING…",
+        "thinking" => "THINKING…",
+        "finishing" => "REVIEWING…",
+        "error" => "PAUSED",
+        _ => "READY",
+    };
+
+
+
+    /// <summary>Why the student can't join yet. The interview is spoken, so a working microphone is required.</summary>
+    private string? JoinBlocker =>
+        !_caps.SecureContext ? "The microphone only works on a secure (https) address. Open Sapling over https to take the interview."
+        : !_caps.Stt ? "This browser can't turn speech into text. Open this page in Google Chrome or Microsoft Edge to take the interview."
+        : _micState switch
+        {
+            "pending" => null,
+            "not-allowed" => "Microphone access is blocked. Allow it from the camera/microphone icon in the address bar, then press Try again.",
+            "unavailable" => "No microphone was found. Plug one in or check it is switched on, then press Try again.",
+            "unsupported" => "This browser can't use a microphone here. Open this page in Google Chrome or Microsoft Edge.",
+            _ => null,
+        };
+
+    private (string Text, bool Mine)? Caption =>
+        _stage == "listening" && !string.IsNullOrWhiteSpace(_heard) ? (_heard, true)
+        : _stage is "speaking" or "listening" && _line is { } line ? (line.Say, false)
+        : null;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _interview = await Interviews.GetAsync(Id);
+        switch (_interview?.Status)
+        {
+            case null:
+                Nav.NavigateTo("/interview");
+                return;
+            case "Setup":
+                Nav.NavigateTo($"/interview/{Id}/resume");
+                return;
+            case "Complete":
+                Nav.NavigateTo($"/interview/{Id}/report");
+                return;
+        }
+
+        LoadTurns(_interview);
+        try
+        {
+            var profile = await Profiles.GetAsync();
+            _name = profile.FullName;
+            _avatarUrl = profile.AvatarDataUrl;
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            _name = "";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (FormFactor.Platform != "Web" || _interview is null)
+        {
+            return;
+        }
+
+        if (!_jsReady && _ref is null)
+        {
+            _ref = DotNetObjectReference.Create(this);
+            try
+            {
+                _caps = await Js.InvokeAsync<Caps>("sapling.interview.bind", _ref,
+                    new { silenceMs = 2600, pauseMs = 1500, lang = "en-IN", natural = _interview.NaturalVoice });
+                _jsReady = true;
+                _panelOpen = !_caps.Narrow;
+            }
+            catch (JSException)
+            {
+                _jsReady = false;
+                _micState = "unsupported";
+            }
+
+            _stage = "lobby";
+            StateHasChanged();
+
+            // Open the microphone straight away, like a meeting lobby: it shows the level meter and lets the
+            // browser name the devices in the pickers.
+            if (_jsReady && _caps.Stt && _caps.SecureContext)
+            {
+                await OpenMicAsync();
+            }
+
+            return;
+        }
+
+        if (!_jsReady)
+        {
+            return;
+        }
+
+        if (_camPending)
+        {
+            await StartCameraAsync();
+        }
+        else if (_camOn)
+        {
+            // The lobby and the room have different <video> elements; hand the stream to whichever is showing.
+            await Js.InvokeVoidAsync("sapling.interview.camera.attach", _video);
+        }
+
+        if (InRoom)
+        {
+            if (!_timerStarted)
+            {
+                _timerStarted = true;
+                await Js.InvokeVoidAsync("sapling.interview.timer.start", "mt-timer", _interview.ActiveSeconds);
+            }
+
+            if (_panelOpen)
+            {
+                await Js.InvokeVoidAsync("sapling.interview.scrollToEnd", _scroller);
+            }
+        }
+    }
+
+    private void LoadTurns(InterviewDto interview)
+    {
+        _turns.Clear();
+        _turns.AddRange(interview.Turns.Select(t => new Turn(t.Speaker, t.Text)));
+    }
+
+    private string? AudioUrl(int turnOrder) =>
+        _interview is { NaturalVoice: true } ? $"/api/interview/{Id}/voice/{turnOrder}" : null;
+
+    // ---------- Devices ----------
+
+    private async Task OpenMicAsync()
+    {
+        _micState = await Js.InvokeAsync<string>("sapling.interview.openMic");
+        await RefreshDevicesAsync();
+        StateHasChanged();
+    }
+
+    private async Task RetryMicAsync()
+    {
+        _micState = "pending";
+        await OpenMicAsync();
+    }
+
+    private async Task RefreshDevicesAsync()
+    {
+        try
+        {
+            _devices = await Js.InvokeAsync<DeviceList>("sapling.interview.devices");
+        }
+        catch (JSException)
+        {
+            // Pickers stay empty; the defaults still work.
+        }
+    }
+
+    private async Task MicChangedAsync(ChangeEventArgs e)
+    {
+        var result = await Js.InvokeAsync<string>("sapling.interview.setMic", e.Value?.ToString() ?? "");
+        if (result != "ok")
+        {
+            _micState = result;
+            if (InRoom)
+            {
+                _micProblem = "That microphone couldn't be opened. Pick another one from the arrow next to the mic button.";
+            }
+        }
+        else
+        {
+            _micState = "ok";
+        }
+
+        await RefreshDevicesAsync();
+    }
+
+    private async Task SpeakerChangedAsync(ChangeEventArgs e)
+    {
+        await Js.InvokeVoidAsync("sapling.interview.setSpeaker", e.Value?.ToString() ?? "");
+        await Js.InvokeVoidAsync("sapling.interview.testSpeaker");
+        await RefreshDevicesAsync();
+    }
+
+    private async Task TestSpeakerAsync() => await Js.InvokeVoidAsync("sapling.interview.testSpeaker");
+
+    private async Task CameraChangedAsync(ChangeEventArgs e)
+    {
+        _camDevice = e.Value?.ToString() ?? "";
+        if (_camOn)
+        {
+            _camPending = true;   // restart on the new device after this render
+        }
+        else
+        {
+            await ToggleCameraAsync();
+        }
+    }
+
+    private async Task OpenMenuAsync(string menu)
+    {
+        _menu = _menu == menu ? null : menu;
+        if (_menu is not null)
+        {
+            await RefreshDevicesAsync();
+        }
+    }
+
+    private async Task ToggleMuteAsync()
+    {
+        _muted = !_muted;
+        if (_jsReady)
+        {
+            await Js.InvokeVoidAsync("sapling.interview.setMuted", _muted);
+        }
+    }
+
+    private async Task ToggleCameraAsync()
+    {
+        if (!_jsReady)
+        {
+            return;
+        }
+
+        if (_camOn)
+        {
+            await Js.InvokeVoidAsync("sapling.interview.camera.stop");
+            _camOn = false;
+            return;
+        }
+
+        // The <video> element must exist before the stream is attached: render it, then start in OnAfterRender.
+        _camOn = true;
+        _camPending = true;
+    }
+
+    private async Task StartCameraAsync()
+    {
+        _camPending = false;
+        var result = await Js.InvokeAsync<string>("sapling.interview.camera.start", _video, _camDevice);
+        _camDevice = null;
+        await RefreshDevicesAsync();
+        if (result == "ok")
+        {
+            StateHasChanged();
+            return;
+        }
+
+        _camOn = false;
+        var message = result == "not-allowed"
+            ? "Camera access was blocked. You can allow it from the address bar; the interview works without it."
+            : "That camera couldn't be opened. The interview works without it.";
+        if (InRoom)
+        {
+            _hint = message;
+        }
+        else
+        {
+            _lobbyNote = message;
+        }
+
+        StateHasChanged();
+    }
+
+    // ---------- Voice ----------
+
+    private async Task PreviewVoiceAsync()
+    {
+        if (_jsReady)
+        {
+            await Js.InvokeVoidAsync("sapling.interview.preview", AudioUrl(0));
+        }
+    }
+
+    // ---------- Joining ----------
+
+    private async Task JoinAsync()
+    {
+        if (JoinBlocker is not null || !_jsReady)
+        {
+            return;
+        }
+
+        _joining = true;
+        await Js.InvokeVoidAsync("sapling.interview.stopSpeaking");
+
+        // Runs inside the click, which browsers require before playing audio.
+        _micState = await Js.InvokeAsync<string>("sapling.interview.unlock");
+        _joining = false;
+        if (_micState != "ok")
+        {
+            return;
+        }
+
+        await RunAsync(() => Interviews.BeginAsync(Id));
+    }
+
+    // ---------- Turn loop ----------
+
+    private async Task RunAsync(Func<Task<InterviewerLineDto>> call)
+    {
+        _stage = "thinking";
+        _error = null;
+        StateHasChanged();
+        try
+        {
+            await PresentAsync(await call());
+        }
+        catch (InterviewProblemException e)
+        {
+            _stage = "error";
+            _error = e.Message;
+            _retryFinish = false;
+        }
+        catch (Exception e) when (e is not OperationCanceledException and not JSDisconnectedException)
+        {
+            _stage = "error";
+            _error = "Something went wrong reaching the interviewer. Your answers so far are saved.";
+            _retryFinish = false;
+        }
+    }
+
+    private async Task PresentAsync(InterviewerLineDto line)
+    {
+        _line = line;
+        var last = _turns.LastOrDefault();
+        if (last is null || last.Speaker != "Interviewer" || last.Text != line.Say)
+        {
+            _turns.Add(new Turn("Interviewer", line.Say));
+        }
+
+        _stage = "speaking";
+        StateHasChanged();
+        await Js.InvokeVoidAsync("sapling.interview.speak", line.Say, AudioUrl(line.TurnOrder));
+    }
+
+    [JSInvokable]
+    public void OnSpeakStart()
+    {
+    }
+
+    [JSInvokable]
+    public async Task OnSpeakEnd()
+    {
+        if (_stage != "speaking")
+        {
+            return;
+        }
+
+        if (_line?.Done == true)
+        {
+            await FinishAsync();
+            return;
+        }
+
+        await StartListeningAsync();
+    }
+
+    private async Task StartListeningAsync()
+    {
+        _stage = "listening";
+        _heard = "";
+        _micProblem = null;
+        var ok = await Js.InvokeAsync<bool>("sapling.interview.listen");
+        if (!ok)
+        {
+            _micProblem = "Speech recognition couldn't start. Check your microphone, then press Try again.";
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task RetryListeningAsync()
+    {
+        _micProblem = null;
+        if (_stage == "listening")
+        {
+            await StartListeningAsync();
+        }
+    }
+
+    [JSInvokable]
+    public void OnTranscript(string text)
+    {
+        if (_stage != "listening")
+        {
+            return;
+        }
+
+        _heard = text;
+        _hint = null;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public async Task OnAnswer(string text, AnswerMetricsDto metrics)
+    {
+        if (_stage == "listening")
+        {
+            await SubmitAsync(text, metrics);
+        }
+    }
+
+    [JSInvokable]
+    public void OnError(string code, string heard)
+    {
+        if (_stage != "listening")
+        {
+            return;
+        }
+
+        if (code == "no-speech")
+        {
+            _hint = _muted
+                ? "You're muted. Unmute to answer."
+                : "I can't hear anything yet. Check the right microphone is selected (arrow next to the mic button).";
+        }
+        else if (code == "mic-fallback")
+        {
+            // Still listening, on the system default microphone.
+            _hint = "Your browser couldn't transcribe the microphone you picked, so it's now using your system's default microphone. Carry on speaking.";
+        }
+        else
+        {
+            // Keep what was heard so far on screen; Try again carries on listening.
+            _heard = heard;
+            _micProblem = code switch
+            {
+                "network" => "Speech recognition lost its connection (it needs internet). Check your connection, then press Try again.",
+                "not-allowed" or "service-not-allowed" => "Microphone access or the browser's speech service is blocked. Allow the microphone from the address bar, then press Try again.",
+                "stalled" => "Speech recognition isn't responding in this browser. Press Try again; if it keeps happening, use Google Chrome or Microsoft Edge with your system's default microphone.",
+                "language-not-supported" => "This browser's speech recognition doesn't support English here. Use Google Chrome or Microsoft Edge.",
+                _ => "Your microphone stopped working. Pick another one from the arrow next to the mic button, then press Try again.",
+            };
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task DoneAnsweringAsync()
+    {
+        var heard = await Js.InvokeAsync<HeardAnswer>("sapling.interview.stopListening", false);
+        var text = string.IsNullOrWhiteSpace(heard.Text) ? _heard : heard.Text;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            _hint = "I didn't catch anything. Try again, a little louder, or check the right microphone is selected.";
+            await StartListeningAsync();
+            return;
+        }
+
+        await SubmitAsync(text, heard.Metrics);
+    }
+
+    private async Task SubmitAsync(string text, AnswerMetricsDto metrics)
+    {
+        _turns.Add(new Turn("Candidate", text));
+        _heard = "";
+        _hint = null;
+        _micProblem = null;
+        await RunAsync(() => Interviews.AnswerAsync(Id, new SubmitAnswerRequest(text, metrics)));
+    }
+
+    private async Task RepeatAsync()
+    {
+        if (_line is { } line)
+        {
+            _stage = "speaking";
+            _heard = "";
+            await Js.InvokeVoidAsync("sapling.interview.speak", line.Say, AudioUrl(line.TurnOrder));
+        }
+    }
+
+    private async Task RetryAsync()
+    {
+        if (_retryFinish)
+        {
+            await FinishAsync();
+            return;
+        }
+
+        // The server is the source of truth: reload what was saved, then continue from there.
+        if (await Interviews.GetAsync(Id) is { } fresh)
+        {
+            _interview = fresh;
+            LoadTurns(fresh);
+        }
+
+        await RunAsync(() => Interviews.BeginAsync(Id));
+    }
+
+    private async Task EndNowAsync()
+    {
+        _confirmEnd = false;
+        await FinishAsync();
+    }
+
+    private async Task FinishAsync()
+    {
+        if (_jsReady)
+        {
+            await Js.InvokeAsync<HeardAnswer>("sapling.interview.stopListening", true);
+            await Js.InvokeVoidAsync("sapling.interview.stopSpeaking");
+        }
+
+        _stage = "finishing";
+        _error = null;
+        _hint = null;
+        _micProblem = null;
+        _menu = null;
+        StateHasChanged();
+        try
+        {
+            await Interviews.FinishAsync(Id);
+            Nav.NavigateTo($"/interview/{Id}/report");
+        }
+        catch (InterviewProblemException e)
+        {
+            _stage = "error";
+            _error = e.Message;
+            _retryFinish = true;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_jsReady)
+        {
+            try
+            {
+                await Js.InvokeVoidAsync("sapling.interview.destroy");
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        _ref?.Dispose();
+    }
+}

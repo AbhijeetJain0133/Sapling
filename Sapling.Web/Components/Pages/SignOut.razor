@@ -1,0 +1,18 @@
+@page "/signout"
+@namespace Sapling.Web.Components.Pages
+@attribute [AllowAnonymous]
+@attribute [ExcludeFromInteractiveRouting]
+@using Microsoft.AspNetCore.Components.Endpoints
+@using Microsoft.AspNetCore.Identity
+@using Sapling.Web.Data
+@inject SignInManager<AppUser> SignInManager
+@inject NavigationManager Nav
+@layout EmptyLayout
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await SignInManager.SignOutAsync();
+        Nav.NavigateTo("/signin", forceLoad: true);
+    }
+}

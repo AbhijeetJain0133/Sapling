@@ -1,0 +1,142 @@
+@page "/resume"
+@namespace Sapling.Shared.Pages
+@inject IResumeService Resumes
+@inject IFormFactor FormFactor
+
+<PageTitle>Resume · Sapling</PageTitle>
+<RecordVisit Feature="@FeatureCatalog.Resume" />
+
+<div class="stack g-5" style="max-width:960px">
+    <div class="stack g-1">
+        <h1 style="font-size:28px;line-height:34px">Resume builder</h1>
+        <span class="t-muted">
+            Get an honest score and concrete fixes for the resume you have, or build one in an ATS-safe template.
+            Edit it side by side with the PDF, and ask the AI to make changes. It rephrases what's true about you; it never invents experience.
+        </span>
+    </div>
+
+    @if (!IsWeb)
+    {
+        <ResumeWebOnly />
+    }
+    else
+    {
+        <div class="rs-options">
+            <a class="tile rs-option hue-resume" href="/resume/upload">
+                <SapArt Name="resume" Class="tile-art" />
+                <span class="icon-tile icon-tile-solid"><SapIcon Name="upload" Size="20" /></span>
+                <span class="stack" style="gap:2px">
+                    <span style="font-weight:600">Upload your resume</span>
+                    <span class="t-small t-muted">Score it, see what to fix, and edit it as LaTeX.</span>
+                </span>
+            </a>
+            <a class="tile rs-option hue-roadmap" href="/resume/new">
+                <SapArt Name="onboarding-2" Class="tile-art" />
+                <span class="icon-tile icon-tile-solid"><SapIcon Name="list-checks" Size="20" /></span>
+                <span class="stack" style="gap:2px">
+                    <span style="font-weight:600">Build step by step</span>
+                    <span class="t-small t-muted">Fill in education, projects and skills. We typeset it for you.</span>
+                </span>
+            </a>
+            <a class="tile rs-option hue-interview" href="/resume/new?mode=prompt">
+                <SapArt Name="onboarding-1" Class="tile-art" />
+                <span class="icon-tile icon-tile-solid"><SapIcon Name="sparkles" Size="20" /></span>
+                <span class="stack" style="gap:2px">
+                    <span style="font-weight:600">Describe yourself</span>
+                    <span class="t-small t-muted">Write a few lines about you; the AI drafts the sections for you to check.</span>
+                </span>
+            </a>
+        </div>
+    }
+
+    <div class="stack g-3">
+        <span class="section-title hue-resume">Your resumes</span>
+        @if (_items is null)
+        {
+            <div class="skeleton" style="height:76px"></div>
+        }
+        else if (_items.Count == 0)
+        {
+            <div class="card card-inset t-small t-muted">No resumes yet. Upload one or build one above.</div>
+        }
+        else
+        {
+            <div class="stack g-2">
+                @foreach (var item in _items)
+                {
+                    <div class="card row between g-4 wrap" style="padding:var(--sp-4)">
+                        <a class="row g-3 grow" style="min-width:220px;color:inherit" href="@(IsWeb ? $"/resume/{item.Id}" : null)">
+                            @if (item.Score is { } score)
+                            {
+                                <ScoreRing Value="score" Size="52" Thickness="6" Animate="false" Label="Resume score" Hue="resume" />
+                            }
+                            else
+                            {
+                                <span class="icon-tile icon-tile-solid hue-resume" style="width:52px;height:52px"><SapIcon Name="file-text" Size="22" /></span>
+                            }
+                            <span class="stack" style="gap:2px;min-width:0">
+                                <span style="font-weight:600">@item.Title</span>
+                                <span class="t-caption t-subtle">
+                                    @ResumeTemplates.NameOf(item.Template) · @SourceText(item.Source) · edited @item.UpdatedAt.ToLocalTime().ToString("d MMM, h:mm tt")
+                                </span>
+                            </span>
+                        </a>
+                        <div class="row g-2">
+                            @if (item.Score is null)
+                            {
+                                <SapBadge Tone="neutral">Not scored</SapBadge>
+                            }
+                            else if (item.AnalysisStale)
+                            {
+                                <SapBadge Tone="warn" Icon="clock">Score out of date</SapBadge>
+                            }
+                            <button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Delete resume"
+                                    @onclick="() => _pendingDelete = item">
+                                <SapIcon Name="trash" Size="16" />
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@if (_pendingDelete is { } pending)
+{
+    <SapModal Title="Delete this resume?" OnClose="() => _pendingDelete = null">
+        <ChildContent>
+            <span class="t-small t-muted">"@pending.Title" and its score will be removed. This can't be undone.</span>
+        </ChildContent>
+        <Footer>
+            <button type="button" class="btn btn-ghost" @onclick="() => _pendingDelete = null">Cancel</button>
+            <button type="button" class="btn btn-danger" @onclick="DeleteAsync">Delete</button>
+        </Footer>
+    </SapModal>
+}
+
+@code {
+    private IReadOnlyList<ResumeSummaryDto>? _items;
+    private ResumeSummaryDto? _pendingDelete;
+
+    private bool IsWeb => FormFactor.Platform == "Web";
+
+    protected override async Task OnInitializedAsync() => _items = await Resumes.GetAllAsync();
+
+    private static string SourceText(string source) => source switch
+    {
+        "upload" => "uploaded",
+        "prompt" => "drafted with AI",
+        _ => "built here",
+    };
+
+    private async Task DeleteAsync()
+    {
+        if (_pendingDelete is { } item)
+        {
+            _pendingDelete = null;
+            await Resumes.DeleteAsync(item.Id);
+            _items = await Resumes.GetAllAsync();
+        }
+    }
+}

@@ -1,0 +1,20 @@
+@namespace Sapling.Shared.Components
+
+@* An inline illustration from ArtLibrary. It takes its colours from the nearest .hue-* ancestor. *@
+<span class="sap-art @Class" style="@Style" aria-hidden="true">@Markup</span>
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = "nothing-here";
+
+    /// <summary>Width in pixels; height follows the scene's aspect ratio.</summary>
+    [Parameter] public int? Size { get; set; }
+
+    [Parameter] public string? Class { get; set; }
+
+    // Fixed per instance so two scenes on one page never share SVG ids, and re-renders don't churn the DOM.
+    private readonly string _uid = "art" + Guid.NewGuid().ToString("N")[..8];
+
+    private string? Style => Size is { } s ? $"width:{s}px" : null;
+
+    private MarkupString Markup => (MarkupString)ArtLibrary.Render(Name, _uid);
+}

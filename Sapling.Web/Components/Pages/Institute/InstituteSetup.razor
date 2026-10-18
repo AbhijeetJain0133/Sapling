@@ -1,0 +1,114 @@
+@page "/institute/setup"
+@namespace Sapling.Web.Components.Pages.Institute
+@layout InstituteLayout
+@attribute [Authorize]
+@inject InstituteService Institutes
+@inject NavigationManager Nav
+
+<PageTitle>Set up your college · Sapling</PageTitle>
+
+<div class="stack g-5" style="max-width:620px">
+    <div class="stack g-1">
+        <span class="page-eyebrow hue-community">Getting started</span>
+        <h1 style="font-size:28px;line-height:34px">Which college is this?</h1>
+        <span class="t-muted">
+            Students join a community by naming their college, so pick the same entry they would.
+        </span>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="badge badge-error" role="alert" style="padding:10px 14px;border-radius:var(--r-md);white-space:normal">
+            <SapIcon Name="alert-circle" Size="15" />
+            @_error
+        </div>
+    }
+
+    <SapCard Class="tile hue-community">
+        <ChildContent>
+        <div class="stack g-4">
+            <div class="field">
+                <label for="college">College</label>
+                <CollegeAutocomplete Id="college" Value="@_name" OnSelected="OnCollegeSelected" OnCleared="OnCollegeCleared"
+                                     Placeholder="Search the AICTE list, or type your college's full name" />
+                <span class="field-hint">Not in the list? Type the full name and we will add it.</span>
+            </div>
+
+            <div class="grid grid-2">
+                <div class="field">
+                    <label for="short">Short name</label>
+                    <input id="short" class="input" @bind="_shortName" @bind:event="oninput" maxlength="24" placeholder="SGSITS" />
+                </div>
+                <div class="field">
+                    <label for="state">State</label>
+                    <select id="state" class="input" value="@_state" @onchange="OnStateChanged">
+                        <option value="">Select a state</option>
+                        @foreach (var state in LocationCatalog.GetStates())
+                        {
+                            <option value="@state">@state</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="city">City</label>
+                <select id="city" class="input" @bind="_city" disabled="@string.IsNullOrEmpty(_state)">
+                    <option value="">Select a city</option>
+                    @foreach (var city in LocationCatalog.GetCitiesForState(_state))
+                    {
+                        <option value="@city">@city</option>
+                    }
+                </select>
+            </div>
+        </div>
+        </ChildContent>
+
+        <Footer>
+            <div class="row between g-2 wrap">
+                <span class="t-caption t-subtle">You can change any of this later.</span>
+                <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@(_saving || _name.Length < 3)">
+                    @(_saving ? "Saving…" : "Continue")
+                </button>
+            </div>
+        </Footer>
+    </SapCard>
+</div>
+
+@code {
+    private string _name = "";
+    private string _shortName = "";
+    private string _city = "";
+    private string _state = "";
+    private string? _error;
+    private bool _saving;
+
+    private void OnCollegeSelected(string name) => _name = name;
+
+    private void OnCollegeCleared() => _name = "";
+
+    private void OnStateChanged(ChangeEventArgs e)
+    {
+        _state = e.Value?.ToString() ?? "";
+        _city = "";
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            await Institutes.CompleteSetupAsync(new InstituteSetupRequest(_name, _shortName, _city, _state));
+            Nav.NavigateTo("/institute", forceLoad: true);
+        }
+        catch (Exception e) when (e is ArgumentException or InvalidOperationException)
+        {
+            _error = e.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

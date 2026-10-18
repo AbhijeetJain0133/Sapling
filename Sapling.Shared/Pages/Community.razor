@@ -1,0 +1,197 @@
+@page "/community"
+@namespace Sapling.Shared.Pages
+@inject ICommunityService CommunityService
+@inject IStudentSpaceService Space
+@inject IProfileService Profiles
+
+<PageTitle>Community · Sapling</PageTitle>
+<RecordVisit Feature="@FeatureCatalog.Community" />
+
+@* The hub: a welcome from the college, the two places to go with a peek at the newest thing in each, and a
+   glimpse of who is here and what was posted lately. *@
+<div class="stack g-5" style="max-width:760px">
+    <section class="g-card hue-community comm-hero">
+        <SapArt Name="community" Class="g-card-art comm-hero-art" />
+        <div class="stack comm-hero-body">
+            <span class="t-overline">Your campus</span>
+            <h1 class="comm-hero-h1">@(string.IsNullOrWhiteSpace(_college) ? "Community" : _college)</h1>
+            @if (_loaded && !string.IsNullOrWhiteSpace(_college))
+            {
+                <div class="comm-hero-stats">
+                    <span><b>@_memberCount</b> @(_memberCount == 1 ? "student" : "students")</span>
+                    <span><b>@_posts.Count</b> @(_posts.Count == 1 ? "announcement" : "announcements")</span>
+                </div>
+            }
+        </div>
+        <a class="btn btn-glass btn-sm comm-hero-saved" href="/community/saved">
+            <SapIcon Name="bookmark" Size="15" Stroke="2" />
+            Saved
+        </a>
+    </section>
+
+    @if (!_loaded)
+    {
+        <div class="stack g-3">
+            @for (var i = 0; i < 2; i++)
+            {
+                <div class="card"><div class="skeleton" style="height:90px"></div></div>
+            }
+        </div>
+    }
+    else if (string.IsNullOrWhiteSpace(_college))
+    {
+        <SapEmptyState Title="Add your college to join its community" Icon="users" Art="profile" Hue="community"
+                       Description="The community is private to a college. Once your profile names yours, its announcements and students appear here.">
+            <a class="btn btn-primary" href="/profile">Update profile</a>
+        </SapEmptyState>
+    }
+    else
+    {
+        <div class="stack g-3">
+            <a class="card chan-card hue-govt" href="/community/announcements">
+                <span class="chan-card-icon"><SapIcon Name="megaphone" Size="22" Stroke="2" /></span>
+                <span class="stack grow" style="gap:2px;min-width:0">
+                    <span class="row between g-2">
+                        <span class="chan-card-title">College announcements</span>
+                        @if (LatestPost is not null)
+                        {
+                            <span class="t-caption t-subtle" style="flex:none">@CommunityDisplay.Ago(LatestPost.PostedAt)</span>
+                        }
+                    </span>
+                    @if (LatestPost is not null)
+                    {
+                        <span class="chan-card-peek"><b>@LatestPost.Kind:</b> @LatestPost.Title</span>
+                    }
+                    else
+                    {
+                        <span class="chan-card-peek">Nothing posted yet. Workshops, events and openings from your college show up here.</span>
+                    }
+                </span>
+                <SapIcon Name="chevron-right" Size="18" Class="t-subtle" />
+            </a>
+
+            <a class="card chan-card hue-community" href="/community/space">
+                <span class="chan-card-icon"><SapIcon Name="users" Size="22" Stroke="2" /></span>
+                <span class="stack grow" style="gap:2px;min-width:0">
+                    <span class="row between g-2">
+                        <span class="chan-card-title">Student space</span>
+                        @if (_latestMessage is not null)
+                        {
+                            <span class="t-caption t-subtle" style="flex:none">@CommunityDisplay.Ago(_latestMessage.PostedAt)</span>
+                        }
+                    </span>
+                    @if (_latestMessage is not null)
+                    {
+                        <span class="chan-card-peek"><b>@(_latestMessage.IsMine ? "You" : _latestMessage.AuthorName):</b> @_latestMessage.Body</span>
+                    }
+                    else
+                    {
+                        <span class="chan-card-peek">It's quiet in here. Say hello to the students of your college.</span>
+                    }
+                </span>
+                <SapIcon Name="chevron-right" Size="18" Class="t-subtle" />
+            </a>
+        </div>
+
+        @if (_members.Count > 0)
+        {
+            <a class="tile hue-community comm-people" href="/community/space">
+                <div class="stack" style="gap:2px;min-width:0">
+                    <span class="section-title hue-community">Who's here</span>
+                    <span class="t-small t-muted">@PeopleLine</span>
+                </div>
+                <div class="comm-faces">
+                    @foreach (var member in _members.Take(Faces))
+                    {
+                        @if (!string.IsNullOrEmpty(member.AvatarUrl))
+                        {
+                            <img class="space-avatar comm-face" src="@member.AvatarUrl" alt="" title="@member.Name" />
+                        }
+                        else
+                        {
+                            <span class="space-avatar comm-face hue-@Hues.ForKey(member.Name)" title="@member.Name">@Hues.Monogram(member.Name)</span>
+                        }
+                    }
+                    @if (_memberCount > Faces)
+                    {
+                        <span class="space-avatar comm-face comm-face-more">+@(_memberCount - Faces)</span>
+                    }
+                </div>
+            </a>
+        }
+
+        @if (_posts.Count > 0)
+        {
+            <SapCard Title="Lately from your college" Class="tile hue-govt">
+                <Header>
+                    <a class="btn btn-secondary btn-sm" href="/community/announcements">See all</a>
+                </Header>
+                <ChildContent>
+                    <div class="stack">
+                        @foreach (var post in _posts.Take(3))
+                        {
+                            <a class="post-row" href="@($"/community/{post.Id}")">
+                                <span class="icon-tile icon-tile-solid hue-@CommunityDisplay.Hue(post.Kind)" style="width:36px;height:36px">
+                                    <SapIcon Name="@CommunityDisplay.Icon(post.Kind)" Size="16" />
+                                </span>
+                                <div class="stack grow" style="gap:2px;min-width:0">
+                                    <span class="t-small post-row-title">@post.Title</span>
+                                    <span class="t-caption t-subtle">@post.Kind &middot; @CommunityDisplay.Ago(post.PostedAt)</span>
+                                </div>
+                                <span class="row g-1 t-caption t-subtle" aria-label="@($"{post.Upvotes} upvotes")">
+                                    <SapIcon Name="arrow-up" Size="14" /> @post.Upvotes
+                                </span>
+                            </a>
+                        }
+                    </div>
+                </ChildContent>
+            </SapCard>
+        }
+    }
+</div>
+
+@code {
+    // How many profile photos the "Who's here" strip shows before the "+N".
+    private const int Faces = 7;
+
+    private bool _loaded;
+    private string? _college;
+    private List<CommunityPostDto> _posts = [];
+    private IReadOnlyList<StudentSpaceMemberDto> _members = [];
+    private StudentMessageDto? _latestMessage;
+    private int _memberCount;
+
+    private CommunityPostDto? LatestPost => _posts.Count > 0 ? _posts[0] : null;
+
+    private string PeopleLine
+    {
+        get
+        {
+            var others = _members.Where(m => !m.IsMe).Select(m => m.Name.Split(' ')[0]).Take(2).ToList();
+            return others.Count switch
+            {
+                0 => "You're the first one here from your college. Invite your classmates.",
+                1 => _memberCount > 2 ? $"{others[0]} and {_memberCount - 2} more are here with you." : $"{others[0]} is here with you.",
+                _ => _memberCount > 3
+                    ? $"{others[0]}, {others[1]} and {_memberCount - 3} more are here with you."
+                    : $"{others[0]} and {others[1]} are here with you.",
+            };
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _college = (await Profiles.GetAsync()).College;
+        if (!string.IsNullOrWhiteSpace(_college))
+        {
+            _posts = (await CommunityService.GetFeedAsync()).OrderByDescending(p => p.PostedAt).ToList();
+
+            var space = await Space.GetAsync();
+            _memberCount = space.Members;
+            _latestMessage = space.Messages.Count > 0 ? space.Messages[^1] : null;
+            _members = await Space.GetMembersAsync();
+        }
+
+        _loaded = true;
+    }
+}

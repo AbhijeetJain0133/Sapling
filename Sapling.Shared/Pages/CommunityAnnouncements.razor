@@ -1,0 +1,174 @@
+@page "/community/announcements"
+@namespace Sapling.Shared.Pages
+@inject ICommunityService CommunityService
+
+<PageTitle>College announcements · Sapling</PageTitle>
+
+<div class="chan-page" style="max-width:760px">
+    <header class="chan-head hue-govt">
+        <a class="btn btn-ghost btn-icon btn-sm" href="/community" aria-label="Back to community">
+            <SapIcon Name="arrow-left" Size="18" />
+        </a>
+        @* The header is the way into the college's own details. *@
+        <button type="button" class="chan-head-main" @onclick="() => _info = true" aria-label="About your college">
+            @if (!string.IsNullOrEmpty(_college?.LogoDataUrl))
+            {
+                <img class="chan-head-pic" src="@_college.LogoDataUrl" alt="" />
+            }
+            else
+            {
+                <span class="chan-head-pic"><SapIcon Name="megaphone" Size="18" Stroke="2" /></span>
+            }
+            <span class="stack" style="gap:0;min-width:0">
+                <h1 class="chan-head-title">College announcements</h1>
+                <span class="chan-head-sub">
+                    @(_college?.Name ?? "Your college")
+                    @if (_college is { Verified: true })
+                    {
+                        <VerifiedTick Size="12" />
+                    }
+                </span>
+            </span>
+        </button>
+    </header>
+
+    <div class="scroll-x">
+        <SapSegmented TValue="string" Options="_filters" @bind-Value="_filter" />
+    </div>
+
+    @if (_posts is null)
+    {
+        <div class="stack g-3">
+            @for (var i = 0; i < 3; i++)
+            {
+                <div class="card"><div class="skeleton" style="height:180px"></div></div>
+            }
+        </div>
+    }
+    else if (_college is null)
+    {
+        <SapEmptyState Title="Add your college to see its announcements" Icon="users" Art="profile" Hue="community"
+                       Description="Announcements are private to a college. Once your profile names yours, its posts appear here.">
+            <a class="btn btn-primary" href="/profile">Update profile</a>
+        </SapEmptyState>
+    }
+    else if (_posts.Count == 0)
+    {
+        <SapEmptyState Title="@($"{_college.ShortName} has not posted yet")" Icon="megaphone" Art="nothing-here" Hue="community"
+                       Description="When your placement cell or a department posts a workshop, event or opening, it appears here." />
+    }
+    else if (Filtered.Count == 0)
+    {
+        <SapEmptyState Title="Nothing in this category" Icon="megaphone" Art="search" Hue="community"
+                       Description="Your college has not posted anything of this type yet. Try another filter." />
+    }
+    else
+    {
+        <div class="stack g-4">
+            @foreach (var post in Filtered)
+            {
+                <CommunityPostCard @key="post.Id" Post="post" PostChanged="Replace" />
+            }
+        </div>
+    }
+</div>
+
+@if (_info && _college is not null)
+{
+    <SapModal Title="About your college" OnClose="() => _info = false">
+        <div class="stack g-4">
+            <div class="row g-3">
+                @if (!string.IsNullOrEmpty(_college.LogoDataUrl))
+                {
+                    <img class="chan-info-pic" src="@_college.LogoDataUrl" alt="" />
+                }
+                else
+                {
+                    <span class="chan-info-pic hue-govt">@Hues.Monogram(_college.ShortName)</span>
+                }
+                <div class="stack" style="gap:2px;min-width:0">
+                    <span class="row g-1" style="font-weight:700">
+                        @_college.Name
+                        @if (_college.Verified)
+                        {
+                            <VerifiedTick Size="14" />
+                        }
+                    </span>
+                    <span class="t-small t-muted">@Place</span>
+                </div>
+            </div>
+
+            @if (!_college.HasAccount)
+            {
+                <span class="card card-inset t-small t-muted">
+                    Your college has not set up its Sapling account yet, so it has no contact details or announcements here.
+                </span>
+            }
+            else
+            {
+                @if (!string.IsNullOrWhiteSpace(_college.About))
+                {
+                    <p class="t-small" style="margin:0;white-space:pre-wrap">@_college.About</p>
+                }
+
+                <div class="stack g-2">
+                    @if (!string.IsNullOrWhiteSpace(_college.ContactEmail))
+                    {
+                        <a class="row g-2 t-small" href="@($"mailto:{_college.ContactEmail}")">
+                            <SapIcon Name="mail" Size="16" /> @_college.ContactEmail
+                        </a>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(_college.Website))
+                    {
+                        <a class="row g-2 t-small" href="@WebsiteUrl" target="_blank" rel="noopener noreferrer">
+                            <SapIcon Name="external-link" Size="16" /> @_college.Website
+                        </a>
+                    }
+                    <span class="row g-2 t-small t-muted">
+                        <SapIcon Name="megaphone" Size="16" /> @_college.Posts @(_college.Posts == 1 ? "announcement" : "announcements")
+                    </span>
+                </div>
+            }
+        </div>
+    </SapModal>
+}
+
+@code {
+    private readonly IReadOnlyList<SapSegmented<string>.Option> _filters =
+    [
+        new("all", "All"),
+        new(PostKinds.Opportunity, "Opportunities"),
+        new(PostKinds.Workshop, "Workshops"),
+        new(PostKinds.Event, "Events"),
+    ];
+
+    private string _filter = "all";
+    private bool _info;
+    private CollegeInfoDto? _college;
+    private List<CommunityPostDto>? _posts;
+
+    private IReadOnlyList<CommunityPostDto> Filtered => _filter == "all"
+        ? _posts!
+        : _posts!.Where(p => p.Kind == _filter).ToList();
+
+    private string Place => string.Join(", ", new[] { _college!.City, _college.State }.Where(p => !string.IsNullOrWhiteSpace(p)));
+
+    private string WebsiteUrl => _college!.Website.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+        ? _college.Website
+        : $"https://{_college.Website}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _college = await CommunityService.GetCollegeAsync();
+        _posts = [.. await CommunityService.GetFeedAsync()];
+    }
+
+    private void Replace(CommunityPostDto updated)
+    {
+        var index = _posts!.FindIndex(p => p.Id == updated.Id);
+        if (index >= 0)
+        {
+            _posts[index] = updated;
+        }
+    }
+}

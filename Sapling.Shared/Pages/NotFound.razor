@@ -1,0 +1,15 @@
+@page "/not-found"
+@namespace Sapling.Shared.Pages
+@layout AppLayout
+@attribute [AllowAnonymous]
+@using Microsoft.AspNetCore.Authorization
+
+<PageTitle>Not found · Sapling</PageTitle>
+
+<div class="stack center" style="min-height:60vh;justify-content:center">
+    <SapEmptyState Title="That page does not exist"
+                   Description="The link may be out of date, or the feature may have moved."
+                   Icon="search" Art="not-found" Hue="career">
+        <a class="btn btn-primary" href="/home">Back to home</a>
+    </SapEmptyState>
+</div>

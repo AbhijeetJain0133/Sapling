@@ -1,0 +1,98 @@
+@page "/institute"
+@namespace Sapling.Web.Components.Pages.Institute
+@layout InstituteLayout
+@attribute [Authorize]
+@inject InstituteService Institutes
+
+<PageTitle>Institute dashboard · Sapling</PageTitle>
+
+<div class="stack g-5">
+    <div class="g-card hue-community staff-hero">
+        <SapArt Name="community" Class="g-card-art" />
+        <div class="g-card-body stack g-1">
+            <span class="t-overline">Institute dashboard</span>
+            <h1 style="font-size:28px;line-height:34px">@(_data?.Name ?? "Dashboard")</h1>
+            <span class="t-small">How your college is showing up on Sapling.</span>
+        </div>
+        @if (_data is not null)
+        {
+            <div class="row g-2 staff-hero-actions">
+                @if (_data.Verified)
+                {
+                    <SapBadge Tone="success" Icon="shield-check">Verified</SapBadge>
+                }
+                else
+                {
+                    <SapBadge Tone="warn" Icon="info">Awaiting verification</SapBadge>
+                }
+                <a class="btn btn-onlight btn-sm" href="/institute/community">
+                    <SapIcon Name="megaphone" Size="15" />
+                    New post
+                </a>
+            </div>
+        }
+    </div>
+
+    @if (_data is null)
+    {
+        <div class="grid grid-4">
+            @for (var i = 0; i < 4; i++)
+            {
+                <div class="card"><div class="skeleton" style="height:72px"></div></div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="grid grid-4">
+            <Stat Label="Registered students" Value="@_data.Students" Icon="users" Hue="career" Hint="@($"{_data.NewStudentsThisMonth} joined this month")" />
+            <Stat Label="Finished onboarding" Value="@_data.OnboardedStudents" Icon="check-circle" Hue="roadmap" Hint="@Share" />
+            <Stat Label="Posts" Value="@_data.Posts" Icon="megaphone" Hue="community" Hint="@($"{_data.PinnedPosts} pinned · {_data.ArchivedPosts} archived")" />
+            <Stat Label="Engagement" Value="@(_data.Upvotes + _data.Comments)" Icon="arrow-up" Hue="opportunities" Hint="@($"{_data.Upvotes} upvotes · {_data.Comments} comments")" />
+        </div>
+
+        @if (_data.Students == 0)
+        {
+            <SapEmptyState Title="No students yet" Icon="users" Art="nothing-here" Hue="career"
+                           Description="Students appear here once they pick your college during onboarding. Check that the name above matches the one they would search for." />
+        }
+        else
+        {
+            <div class="grid grid-2">
+                <SapCard Title="By branch" Subtitle="Registered students in each department" Class="tile hue-career">
+                    <div class="stack g-3">
+                        @foreach (var slice in _data.ByBranch.Take(10))
+                        {
+                            <LinearBar Percent="Percent(slice.Count)" Label="@slice.Label" ValueText="@slice.Count.ToString()" Small />
+                        }
+                    </div>
+                </SapCard>
+
+                <SapCard Title="By graduating batch" Subtitle="When they leave" Class="tile hue-roadmap">
+                    <div class="stack g-3">
+                        @foreach (var slice in _data.ByGraduationYear)
+                        {
+                            <LinearBar Percent="Percent(slice.Count)" Label="@slice.Label" ValueText="@slice.Count.ToString()" Small />
+                        }
+                    </div>
+                </SapCard>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private InstituteDashboardDto? _data;
+
+    private string Share => _data is { Students: > 0 }
+        ? $"{_data.OnboardedStudents * 100 / _data.Students}% of registered"
+        : "No students yet";
+
+    protected override async Task OnInitializedAsync() => _data = await Institutes.GetDashboardAsync();
+
+    private int Percent(int count)
+    {
+        var top = Math.Max(1, _data!.ByBranch.Concat(_data.ByGraduationYear).Max(s => s.Count));
+        return (int)Math.Round(count * 100.0 / top);
+    }
+}

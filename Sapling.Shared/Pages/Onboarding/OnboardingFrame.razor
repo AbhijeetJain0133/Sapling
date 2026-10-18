@@ -1,0 +1,34 @@
+@namespace Sapling.Shared.Pages.Onboarding
+
+@* Two columns: a sticky gradient panel with the step's scene on the left, the step's content on the right. *@
+<div class="onboard">
+    <aside class="g-card onboard-side hue-@Hue">
+        <div class="row" style="position:relative">
+            <SapLogo Size="26" WordSize="17" />
+        </div>
+        <SapArt Name="@Art" Class="onboard-art" />
+        <div class="stack g-1" style="position:relative">
+            <span class="t-overline">Step @Step of 3</span>
+            <h2 style="font-size:22px;line-height:28px">@SideTitle</h2>
+            <span class="t-small">@SideBlurb</span>
+        </div>
+    </aside>
+    <div class="onboard-main stack g-5">
+        <OnboardingSteps Current="Step" />
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public int Step { get; set; }
+
+    [Parameter] public string Hue { get; set; } = "profile";
+
+    [Parameter] public string Art { get; set; } = "onboarding-1";
+
+    [Parameter] public string SideTitle { get; set; } = "";
+
+    [Parameter] public string SideBlurb { get; set; } = "";
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

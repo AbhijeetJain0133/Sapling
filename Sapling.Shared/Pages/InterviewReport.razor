@@ -1,0 +1,412 @@
+@page "/interview/{Id:int}"
+@page "/interview/{Id:int}/report"
+@namespace Sapling.Shared.Pages
+@inject IInterviewService Interviews
+@inject IFormFactor FormFactor
+@inject IJSRuntime Js
+@inject NavigationManager Nav
+
+<PageTitle>Interview report · Sapling</PageTitle>
+<RecordVisit Feature="@FeatureCatalog.Interview" />
+
+@if (_loading)
+{
+    <div class="card"><div class="skeleton" style="height:320px"></div></div>
+}
+else if (_interview is null)
+{
+    <SapEmptyState Title="Interview not found" Icon="mic" Art="not-found" Hue="interview" Description="It may have been deleted.">
+        <a class="btn btn-secondary" href="/interview">Back to interviews</a>
+    </SapEmptyState>
+}
+else
+{
+    var report = _interview.Report;
+    <div class="stack g-5" style="max-width:960px">
+        <div class="row between g-3 wrap">
+            <div class="stack" style="gap:2px">
+                <a class="t-small row g-1 iv-noprint" href="/interview"><SapIcon Name="arrow-left" Size="14" /> Mock interview</a>
+                <h1 style="font-size:26px;line-height:32px">@_interview.RoleTitle</h1>
+                <span class="t-caption t-subtle">@Meta</span>
+            </div>
+            @if (IsWeb)
+            {
+                <div class="row g-2 iv-noprint">
+                    @if (report is not null)
+                    {
+                        <button type="button" class="btn btn-ghost btn-sm" @onclick="PrintAsync">
+                            <SapIcon Name="download" Size="14" /> Save as PDF
+                        </button>
+                    }
+                    <button type="button" class="btn btn-primary btn-sm" @onclick="PractiseAgainAsync" disabled="@_busy">
+                        <SapIcon Name="refresh" Size="14" /> Practise again
+                    </button>
+                </div>
+            }
+        </div>
+
+        @if (report is null)
+        {
+            <div class="card stack g-3">
+                <h3 style="font-size:19px">This interview isn't finished</h3>
+                <span class="t-small t-muted">The report appears once the interview ends. Your answers so far are saved.</span>
+                @if (IsWeb && _interview.Status != "Complete")
+                {
+                    <a class="btn btn-primary" style="align-self:flex-start"
+                       href="@(_interview.Status == "Setup" ? $"/interview/{Id}/resume" : $"/interview/{Id}/live")">Continue the interview</a>
+                }
+            </div>
+        }
+        else
+        {
+            var delivery = report.Delivery;
+
+            <div class="g-card hue-interview" style="min-height:0">
+                <SapArt Name="interview" Class="g-card-art report-art" />
+                <div class="row-top g-6 wrap" style="position:relative">
+                    <ScoreRing Value="report.Overall" Size="128" Caption="overall" Label="Overall score" OnLight />
+                    <div class="grow stack g-3" style="min-width:260px">
+                        <div class="row g-2 wrap">
+                            <SapBadge Tone="@ConfidenceTone(report.ConfidenceLevel)">
+                                @(report.ConfidenceLevel == "Not measured" ? "Confidence not measured" : $"{report.ConfidenceLevel} confidence")
+                            </SapBadge>
+                            @if (delivery.TypedAnswers > 0)
+                            {
+                                <SapBadge Tone="neutral">@delivery.TypedAnswers typed @(delivery.TypedAnswers == 1 ? "answer" : "answers")</SapBadge>
+                            }
+                            @if (_interview.HasResume)
+                            {
+                                <SapBadge Tone="neutral" Icon="file-text">Resume used</SapBadge>
+                            }
+                        </div>
+                        <p class="t-body" style="margin:0">@report.Summary</p>
+                    </div>
+                </div>
+            </div>
+
+            @if (report.Areas.Count > 0)
+            {
+                <SapCard Title="Scores by area" Class="tile hue-interview">
+                    <ChildContent>
+                        <div class="stack g-4">
+                            @foreach (var area in report.Areas)
+                            {
+                                <div class="stack g-1">
+                                    <LinearBar Percent="area.Score" Label="@area.Area" ValueText="@area.Score.ToString()" Tone="@BarTone(area.Score)" />
+                                    <span class="t-caption t-subtle">@area.Comment</span>
+                                </div>
+                            }
+                        </div>
+                    </ChildContent>
+                </SapCard>
+            }
+
+            <SapCard Title="How you spoke" Subtitle="Measured from your microphone while you answered.">
+                <ChildContent>
+                    @if (delivery.Answers > 0 && delivery.TypedAnswers >= delivery.Answers)
+                    {
+                        <span class="t-small t-muted">
+                            You typed every answer, so there's no voice data. Answer out loud in Chrome or Edge to see your response time, pauses, pace, filler words and confidence.
+                        </span>
+                    }
+                    else
+                    {
+                    <div class="stack g-4">
+                        <div class="iv-stats">
+                            <div class="iv-stat">
+                                <span class="t-caption t-subtle">Time to start answering</span>
+                                <b>@Seconds(delivery.AverageResponseDelayMs)</b>
+                                <span class="t-caption t-subtle">@DelayNote(delivery.AverageResponseDelayMs)</span>
+                            </div>
+                            <div class="iv-stat">
+                                <span class="t-caption t-subtle">Long pauses</span>
+                                <b>@delivery.TotalLongPauses</b>
+                                <span class="t-caption t-subtle">@(delivery.LongestPauseMs > 0 ? $"longest {Seconds(delivery.LongestPauseMs)}" : "over 1.5 s mid-answer")</span>
+                            </div>
+                            <div class="iv-stat">
+                                <span class="t-caption t-subtle">Pace</span>
+                                <b>@(delivery.WordsPerMinute > 0 ? delivery.WordsPerMinute.ToString("0") : "–")</b>
+                                <span class="t-caption t-subtle">@PaceNote(delivery.WordsPerMinute)</span>
+                            </div>
+                            <div class="iv-stat">
+                                <span class="t-caption t-subtle">Filler words</span>
+                                <b>@delivery.FillerCount</b>
+                                <span class="t-caption t-subtle">@(delivery.FillersPerMinute > 0 ? $"{delivery.FillersPerMinute:0.#} per minute" : "um, uh, basically…")</span>
+                            </div>
+                        </div>
+                        <LinearBar Percent="delivery.ConfidenceScore" Label="Confidence from delivery" ValueText="@($"{delivery.ConfidenceScore} / 100")"
+                                   Tone="@BarTone(delivery.ConfidenceScore)" Small />
+                        <span class="t-caption t-subtle">
+                            Based on how quickly you started answering, pauses, filler words, pace and very short answers.
+                            You spoke for @SpeakingTime(delivery.TotalSpeakingSeconds) in total@(delivery.TypedAnswers > 0 ? "; typed answers are left out of these numbers" : "").
+                        </span>
+                    </div>
+                    }
+                </ChildContent>
+            </SapCard>
+
+            @if (report.Strengths.Count > 0 || report.StuckPoints.Count > 0)
+            {
+                <div class="grid grid-2">
+                    <SapCard Title="What went well">
+                        <ChildContent>
+                            @if (report.Strengths.Count == 0)
+                            {
+                                <span class="t-small t-subtle">Nothing stood out yet.</span>
+                            }
+                            else
+                            {
+                                <ul class="iv-list t-small">
+                                    @foreach (var item in report.Strengths)
+                                    {
+                                        <li>@item</li>
+                                    }
+                                </ul>
+                            }
+                        </ChildContent>
+                    </SapCard>
+                    <SapCard Title="Where you got stuck">
+                        <ChildContent>
+                            @if (report.StuckPoints.Count == 0)
+                            {
+                                <span class="t-small t-subtle">You didn't get stuck on any question.</span>
+                            }
+                            else
+                            {
+                                <ul class="iv-list t-small">
+                                    @foreach (var item in report.StuckPoints)
+                                    {
+                                        <li>@item</li>
+                                    }
+                                </ul>
+                            }
+                        </ChildContent>
+                    </SapCard>
+                </div>
+            }
+
+            @if (report.TopicsToImprove.Count > 0)
+            {
+                <SapCard Title="Topics to work on">
+                    <ChildContent>
+                        <div class="row g-2 wrap">
+                            @foreach (var topic in report.TopicsToImprove)
+                            {
+                                <span class="chip chip-progress">@topic</span>
+                            }
+                        </div>
+                    </ChildContent>
+                </SapCard>
+            }
+
+            @if (report.Questions.Count > 0)
+            {
+                <div class="stack g-3">
+                    <span class="t-overline t-subtle">Question by question</span>
+                    @foreach (var q in report.Questions.OrderBy(q => q.TurnOrder))
+                    {
+                        var answer = AnswerFor(q.TurnOrder);
+                        <details class="iv-details">
+                            <summary>
+                                <div class="stack grow" style="gap:2px;min-width:0">
+                                    <span class="t-caption t-subtle">Question @q.TurnOrder</span>
+                                    <span style="font-weight:600">@q.Question</span>
+                                </div>
+                                <div class="row g-2">
+                                    @if (q.GotStuck)
+                                    {
+                                        <SapBadge Tone="warn">Got stuck</SapBadge>
+                                    }
+                                    <SapBadge Tone="@ScoreTone(q.Score)">@q.Score</SapBadge>
+                                    <SapIcon Name="chevron-down" Size="16" />
+                                </div>
+                            </summary>
+                            <div class="stack g-3 t-small">
+                                @if (answer is not null)
+                                {
+                                    <div class="stack g-1">
+                                        <span class="t-overline t-subtle">Your answer</span>
+                                        <span class="t-muted">@answer.Text</span>
+                                        <span class="t-caption t-subtle">@AnswerMetrics(answer)</span>
+                                    </div>
+                                }
+                                else if (!string.IsNullOrWhiteSpace(q.AnswerSummary))
+                                {
+                                    <span class="t-muted">@q.AnswerSummary</span>
+                                }
+                                @if (answer?.AssessmentNote is { } note && !note.StartsWith("Scripted", StringComparison.Ordinal))
+                                {
+                                    <div class="stack g-1">
+                                        <span class="t-overline t-subtle">Interviewer's note during the interview</span>
+                                        <span class="t-muted">@note</span>
+                                    </div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(q.WhatWorked))
+                                {
+                                    <div class="row-top g-2"><span class="t-success"><SapIcon Name="check" Size="16" /></span><span>@q.WhatWorked</span></div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(q.WhatToFix))
+                                {
+                                    <div class="row-top g-2"><span class="t-warn"><SapIcon Name="arrow-up-right" Size="16" /></span><span>@q.WhatToFix</span></div>
+                                }
+                            </div>
+                        </details>
+                    }
+                </div>
+            }
+
+            @if (report.NextSteps.Count > 0)
+            {
+                <SapCard Title="Your next steps">
+                    <ChildContent>
+                        <ol class="iv-list t-small">
+                            @foreach (var step in report.NextSteps)
+                            {
+                                <li>@step</li>
+                            }
+                        </ol>
+                    </ChildContent>
+                </SapCard>
+            }
+        }
+
+        @if (_interview.Turns.Count > 0)
+        {
+            <details class="iv-details">
+                <summary>
+                    <span style="font-weight:600">Full transcript</span>
+                    <SapIcon Name="chevron-down" Size="16" />
+                </summary>
+                <div class="iv-transcript" style="max-height:none">
+                    @foreach (var turn in _interview.Turns)
+                    {
+                        var me = turn.Speaker == "Candidate";
+                        <div class="iv-turn @(me ? "me" : null)">
+                            <span>@(me ? "You" : "Sapling AI")</span>
+                            <div>@turn.Text</div>
+                        </div>
+                    }
+                </div>
+            </details>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private InterviewDto? _interview;
+    private bool _loading = true;
+    private bool _busy;
+
+    private bool IsWeb => FormFactor.Platform == "Web";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _interview = await Interviews.GetAsync(Id);
+        _loading = false;
+    }
+
+    private string Meta
+    {
+        get
+        {
+            var i = _interview!;
+            var parts = new List<string> { i.CreatedAt.ToLocalTime().ToString("d MMM yyyy, h:mm tt") };
+            if (i.ActiveSeconds >= 30)
+            {
+                var minutes = Math.Max(1, (int)Math.Round(i.ActiveSeconds / 60.0));
+                parts.Add($"{(minutes == 1 ? "1 minute" : $"{minutes} minutes")} of ~{i.TargetMinutes} planned");
+            }
+
+            parts.Add($"{i.QuestionsAsked} questions");
+            return string.Join(" · ", parts);
+        }
+    }
+
+    /// <summary>The student's answer to the n-th interviewer question (1-based), if there was one.</summary>
+    private InterviewTurnDto? AnswerFor(int questionNumber)
+    {
+        var turns = _interview!.Turns;
+        var seen = 0;
+        for (var i = 0; i < turns.Count; i++)
+        {
+            if (turns[i].Speaker == "Interviewer" && ++seen == questionNumber)
+            {
+                return i + 1 < turns.Count && turns[i + 1].Speaker == "Candidate" ? turns[i + 1] : null;
+            }
+        }
+
+        return null;
+    }
+
+    private static string AnswerMetrics(InterviewTurnDto t)
+    {
+        if (t.Typed)
+        {
+            return $"Typed · {t.WordCount} words";
+        }
+
+        var parts = new List<string>
+        {
+            $"started after {Seconds(t.ResponseDelayMs)}",
+            $"{t.WordCount} words",
+        };
+        if (t.SpeakingMs > 0)
+        {
+            parts.Add($"spoke for {Seconds(t.SpeakingMs)}");
+        }
+
+        parts.Add(t.LongPauses == 1 ? "1 long pause" : $"{t.LongPauses} long pauses");
+        if (t.FillerCount > 0)
+        {
+            parts.Add(t.FillerCount == 1 ? "1 filler word" : $"{t.FillerCount} filler words");
+        }
+
+        return string.Join(" · ", parts);
+    }
+
+    private static string Seconds(int ms) => ms <= 0 ? "–" : $"{ms / 1000.0:0.#} s";
+
+    private static string DelayNote(int ms) => ms switch
+    {
+        <= 0 => "not measured",
+        < 2000 => "quick start",
+        < 4000 => "a short think first",
+        _ => "long silence before answering",
+    };
+
+    private static string PaceNote(double wpm) => wpm switch
+    {
+        <= 0 => "words per minute",
+        < 100 => "words/min · slow",
+        <= 170 => "words/min · comfortable",
+        _ => "words/min · fast",
+    };
+
+    private static string SpeakingTime(int seconds) =>
+        seconds < 60 ? $"{seconds} s" : $"{seconds / 60} min {seconds % 60} s";
+
+    private static string ConfidenceTone(string level) => level switch
+    {
+        "High" => "success",
+        "Medium" => "warn",
+        "Low" => "error",
+        _ => "neutral",
+    };
+
+    private static string ScoreTone(int score) => score >= 70 ? "success" : score >= 45 ? "warn" : "error";
+
+    private static string BarTone(int score) => score >= 70 ? "green" : score >= 45 ? "coral" : "hue";
+
+    private async Task PrintAsync() => await Js.InvokeVoidAsync("sapling.print");
+
+    private async Task PractiseAgainAsync()
+    {
+        _busy = true;
+        var i = _interview!;
+        var next = await Interviews.CreateAsync(new CreateInterviewRequest(i.CareerRoleId, i.RoleTitle, i.Instructions, i.TargetMinutes));
+        Nav.NavigateTo($"/interview/{next.Id}/resume");
+    }
+}

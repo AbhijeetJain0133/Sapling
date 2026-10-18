@@ -1,0 +1,35 @@
+@namespace Sapling.Shared.Components
+
+@* Same look as the onboarding step indicator, with the steps passed in and earlier steps clickable. *@
+<div class="rs-steps">
+    @for (var i = 0; i < Steps.Count; i++)
+    {
+        var index = i;
+        var done = index < Current;
+        var active = index == Current;
+        <button type="button" class="rs-step @(active ? "active" : null) @(done ? "done" : null)"
+                disabled="@(index > Current)" @onclick="() => OnSelect.InvokeAsync(index)"
+                aria-current="@(active ? "step" : null)">
+            <span class="rs-step-dot">
+                @if (done)
+                {
+                    <SapIcon Name="check" Size="12" Stroke="2.5" />
+                }
+                else
+                {
+                    @(index + 1)
+                }
+            </span>
+            <span class="rs-step-label">@Steps[index]</span>
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<string> Steps { get; set; } = [];
+
+    /// <summary>Zero-based.</summary>
+    [Parameter] public int Current { get; set; }
+
+    [Parameter] public EventCallback<int> OnSelect { get; set; }
+}

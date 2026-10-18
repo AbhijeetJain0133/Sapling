@@ -1,0 +1,67 @@
+@namespace Sapling.Shared.Layout
+@inherits LayoutComponentBase
+@inject IFormFactor FormFactor
+@inject NavigationManager Nav
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthState
+
+@if (FormFactor.Kind == FormFactorKind.Mobile)
+{
+    <MobileShell>@Page</MobileShell>
+}
+else
+{
+    <DesktopShell>@Page</DesktopShell>
+}
+
+<div id="blazor-error-ui" data-nosnippet>
+    Something went wrong.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">&times;</span>
+</div>
+
+@code {
+    private ErrorBoundary? _boundary;
+
+    /// <summary>
+    /// The page inside a boundary: if it throws while loading (no connection, a server hiccup), the student
+    /// gets a "try again" card and the rest of the app keeps working.
+    /// </summary>
+    private RenderFragment Page => __builder =>
+    {
+        <ErrorBoundary @ref="_boundary">
+            <ChildContent>@Body</ChildContent>
+            <ErrorContent>
+                <SapEmptyState Title="This page didn't load" Icon="alert-circle" Art="nothing-here" Hue="brand"
+                               Description="Check your internet connection, then try again.">
+                    <button type="button" class="btn btn-primary" @onclick="() => _boundary?.Recover()">Try again</button>
+                </SapEmptyState>
+            </ErrorContent>
+        </ErrorBoundary>
+    };
+
+    // Moving to another page clears a failed one.
+    protected override void OnParametersSet() => _boundary?.Recover();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The institute shell is web-only, so the mobile head has nowhere to send one and never has such an account.
+        if (FormFactor.Kind == FormFactorKind.Mobile)
+        {
+            return;
+        }
+
+        // Neither an institute nor an admin has a student profile, so every page in this shell would fail for them.
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var shell = state.User.FindFirst("account_type")?.Value switch
+        {
+            "institution" => "/institute",
+            "admin" => "/admin",
+            _ => null,
+        };
+
+        if (shell is not null)
+        {
+            Nav.NavigateTo(shell, replace: true);
+        }
+    }
+}

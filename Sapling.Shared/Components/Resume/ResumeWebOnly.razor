@@ -1,0 +1,10 @@
+@namespace Sapling.Shared.Components
+
+<SapEmptyState Title="Open Sapling on the web" Icon="monitor" Art="resume" Hue="resume"
+               Description="Uploading, building and editing resumes runs on the Sapling website, where there's room for the editor and the PDF preview.">
+    @ChildContent
+</SapEmptyState>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

@@ -1,0 +1,118 @@
+@page "/opportunities"
+@namespace Sapling.Shared.Pages
+@inject IOpportunityService OpportunityService
+
+<PageTitle>Opportunities · Sapling</PageTitle>
+<RecordVisit Feature="@FeatureCatalog.Opportunities" />
+
+<div class="stack g-5">
+    <div class="page-head">
+        <div class="stack g-1">
+            <h1 style="font-size:28px;line-height:34px">Opportunities</h1>
+            <span class="t-muted">Nothing is hidden from you. Roles you are not ready for say exactly what is missing.</span>
+        </div>
+        <SapSegmented TValue="string" Options="_filters" @bind-Value="_filter" />
+    </div>
+
+    @if (_all is null)
+    {
+        <div class="stack g-3">
+            @for (var i = 0; i < 3; i++)
+            {
+                <div class="card"><div class="skeleton" style="height:90px"></div></div>
+            }
+        </div>
+    }
+    else if (Filtered.Count == 0)
+    {
+        <SapEmptyState Title="Nothing here yet" Icon="briefcase" Art="search" Hue="opportunities"
+                       Description="Try a different filter, or close a gap to unlock more matches.">
+            <a class="btn btn-primary" href="/career">See your gaps</a>
+        </SapEmptyState>
+    }
+    else
+    {
+        <div class="stack g-3">
+            @foreach (var item in Filtered)
+            {
+                <a class="card stack g-4 opp-card hue-@Hues.ForKey(item.Company)" href="@($"/opportunities/{item.Id}")">
+                    <div class="row-top between g-4 wrap opp-row">
+                        <span class="mono-tile">@Hues.Monogram(item.Company)</span>
+                        <div class="stack g-2 grow opp-body">
+                            <div class="row g-2 wrap">
+                                <SapBadge Tone="@ReadinessTone(item)" Icon="@ReadinessIcon(item)">@item.Readiness</SapBadge>
+                                <SapBadge Tone="hue">@item.Kind</SapBadge>
+                                @if (item.Remote)
+                                {
+                                    <SapBadge Tone="info" Icon="zap">Remote</SapBadge>
+                                }
+                                @if (ClosingSoon(item))
+                                {
+                                    <SapBadge Tone="coral" Icon="clock">Closes in @DaysLeft(item) days</SapBadge>
+                                }
+                                @if (item.ApplicationStatus is not null)
+                                {
+                                    <SapBadge Tone="success" Icon="check">@item.ApplicationStatus</SapBadge>
+                                }
+                            </div>
+                            <h4>@item.Title</h4>
+                            <span class="t-small t-muted">
+                                @item.Company &middot; @item.Location &middot; @item.Stipend
+                            </span>
+                            @if (item.MissingSkills.Count > 0)
+                            {
+                                <div class="row g-2 wrap opp-missing">
+                                    <span class="t-caption t-subtle">Missing:</span>
+                                    @foreach (var skill in item.MissingSkills)
+                                    {
+                                        <span class="chip chip-claimed" style="padding:2px 9px;font-size:12px">@skill</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        <ScoreRing Value="item.MatchScore" Size="76" Thickness="8" Label="Match" Caption="match" Hue="@Hues.ForKey(item.Company)" />
+                    </div>
+                </a>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private readonly IReadOnlyList<SapSegmented<string>.Option> _filters =
+    [
+        new("all", "All"),
+        new("ready", "Ready now"),
+        new("remote", "Remote"),
+        new("applied", "Applied"),
+    ];
+
+    private string _filter = "all";
+    private IReadOnlyList<OpportunityDto>? _all;
+
+    private IReadOnlyList<OpportunityDto> Filtered => _filter switch
+    {
+        "ready" => _all!.Where(o => o.MissingSkills.Count == 0).ToList(),
+        "remote" => _all!.Where(o => o.Remote).ToList(),
+        "applied" => _all!.Where(o => o.ApplicationStatus is not null).ToList(),
+        _ => _all!,
+    };
+
+    protected override async Task OnInitializedAsync() => _all = await OpportunityService.GetAllAsync();
+
+    private static int DaysLeft(OpportunityDto o) =>
+        o.ClosesOn.DayNumber - DateOnly.FromDateTime(DateTime.Today).DayNumber;
+
+    private static bool ClosingSoon(OpportunityDto o) => DaysLeft(o) is > 0 and <= 7;
+
+    private static string ReadinessTone(OpportunityDto o) => o.MissingSkills.Count switch
+    {
+        0 => "success",
+        1 => "warn",
+        _ => "neutral",
+    };
+
+    private static string ReadinessIcon(OpportunityDto o) =>
+        o.MissingSkills.Count == 0 ? "check-circle" : "target";
+}

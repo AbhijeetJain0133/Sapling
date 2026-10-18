@@ -1,0 +1,614 @@
+/* ---------- Resume: hub ---------- */
+
+.rs-options {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--sp-3);
+}
+
+.rs-option {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    color: var(--ink);
+    transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
+}
+
+.rs-option.tile {
+    min-height: 190px;
+    padding: var(--sp-5);
+    justify-content: flex-end;
+}
+
+.rs-option .tile-art {
+    width: 40%;
+    max-width: 140px;
+    height: auto;
+    aspect-ratio: 6 / 5;
+    top: auto;
+    bottom: -8px;
+    right: -6px;
+}
+
+.rs-option .icon-tile {
+    margin-bottom: auto;
+    width: 44px;
+    height: 44px;
+}
+
+.rs-option > .stack {
+    max-width: 62%;
+}
+
+.rs-option:hover {
+    text-decoration: none;
+}
+
+@media (max-width: 799px) {
+    .rs-options {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ---------- Resume: template picker ---------- */
+
+.rs-templates {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sp-3);
+}
+
+@media (max-width: 559px) {
+    .rs-templates {
+        grid-template-columns: 1fr;
+    }
+}
+
+.rs-template {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-3);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    transition: border-color var(--dur-fast) ease, background var(--dur-fast) ease;
+}
+
+.rs-template:hover {
+    border-color: var(--primary);
+}
+
+.rs-template.selected {
+    border: 2px solid var(--primary);
+    padding: 11px;
+    background: var(--primary-soft);
+}
+
+.rs-template-check {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: var(--r-pill);
+    background: var(--primary);
+    color: var(--primary-on);
+}
+
+/* A tiny sketch of the page: header bar, then text lines in one or two columns. */
+.rs-thumb {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 58px;
+    height: 76px;
+    padding: 7px 6px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: #fff;
+    box-shadow: var(--shadow);
+}
+
+.rs-thumb i {
+    display: block;
+    height: 3px;
+    border-radius: 2px;
+    background: #c9d2dc;
+}
+
+.rs-thumb .head {
+    width: 60%;
+    height: 5px;
+    margin: 0 auto 2px;
+    background: #7d8a97;
+}
+
+.rs-thumb .main,
+.rs-thumb .side {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.rs-thumb .cols {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 4px;
+}
+
+.rs-thumb .side i {
+    background: #a9c3dc;
+}
+
+/* ---------- Resume: wizard ---------- */
+
+.rs-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+}
+
+.rs-step {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 4px 10px 4px 4px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-pill);
+    background: var(--surface);
+    color: var(--subtle);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.rs-step:disabled {
+    cursor: default;
+    opacity: .75;
+}
+
+.rs-step.active {
+    border-color: var(--primary);
+    color: var(--ink);
+}
+
+.rs-step.done {
+    color: var(--ink);
+}
+
+.rs-step-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: var(--r-pill);
+    background: var(--surface2);
+    font-size: 12px;
+}
+
+.rs-step.active .rs-step-dot,
+.rs-step.done .rs-step-dot {
+    background: var(--primary);
+    color: var(--primary-on);
+}
+
+.rs-entry {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    padding: var(--sp-4);
+    padding-right: calc(var(--sp-4) + 28px);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    background: var(--surface2);
+}
+
+.rs-entry-remove {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+}
+
+/* ---------- Resume: spinner ---------- */
+
+.rs-spinner {
+    display: inline-block;
+    width: 22px;
+    height: 22px;
+    border: 3px solid var(--track);
+    border-top-color: var(--primary);
+    border-radius: var(--r-pill);
+    animation: rs-spin .8s linear infinite;
+}
+
+.rs-spinner.sm {
+    width: 14px;
+    height: 14px;
+    border-width: 2px;
+    border-color: currentColor;
+    border-top-color: transparent;
+}
+
+@keyframes rs-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rs-spinner {
+        animation-duration: 2.4s;
+    }
+}
+
+/* ---------- Resume: editor ---------- */
+
+/* Flex, not grid: the pane switcher and the alert come and go, and the panes must take whatever height is left. */
+.rs-editor {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    color: var(--ink);
+}
+
+.rs-topbar {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-4);
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+    min-height: 56px;
+}
+
+.rs-title-input {
+    min-width: 0;
+    width: clamp(120px, 26vw, 340px);
+    padding: 6px 8px;
+    border: 1px solid transparent;
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.rs-title-input:hover {
+    border-color: var(--line);
+}
+
+.rs-title-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: var(--surface);
+}
+
+.rs-save-state {
+    white-space: nowrap;
+}
+
+.rs-alert {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin: var(--sp-3) var(--sp-4) 0;
+    padding: var(--sp-2) var(--sp-3);
+    border: 1px solid var(--error);
+    border-radius: var(--r-md);
+    background: var(--error-soft);
+    color: var(--error-text);
+    font-size: 14px;
+}
+
+.rs-pane-switch {
+    display: none;
+    padding: var(--sp-3) var(--sp-4) 0;
+}
+
+.rs-main {
+    display: grid;
+    grid-template-columns: var(--rs-cols, minmax(0, 1fr) 12px minmax(0, 1fr) 12px 380px);
+    gap: 0;
+    padding: var(--sp-3) var(--sp-4) var(--sp-4);
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.rs-pane {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+}
+
+.rs-pane-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2);
+    min-height: 48px;
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid var(--line);
+    font-size: 14px;
+}
+
+.rs-code-wrap,
+.rs-preview-wrap {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.rs-code,
+.rs-preview {
+    position: absolute;
+    inset: 0;
+}
+
+.rs-code .cm-editor {
+    height: 100%;
+    font-size: 13px;
+    background: var(--surface);
+    color: var(--ink);
+}
+
+.rs-code .cm-editor.cm-focused {
+    outline: none;
+}
+
+.rs-code .cm-scroller {
+    overflow: auto;
+    font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+    line-height: 1.55;
+}
+
+.rs-code .cm-gutters {
+    background: var(--surface2);
+    color: var(--subtle);
+    border-right: 1px solid var(--line);
+}
+
+.rs-code .cm-activeLine,
+.rs-code .cm-activeLineGutter {
+    background: color-mix(in srgb, var(--primary-soft) 55%, transparent);
+}
+
+.rs-code .cm-content {
+    caret-color: var(--ink);
+}
+
+.rs-code .cm-cursor {
+    border-left-color: var(--ink);
+}
+
+.rs-code .cm-selectionBackground,
+.rs-code .cm-focused .cm-selectionBackground,
+.rs-code .cm-content ::selection {
+    background: color-mix(in srgb, var(--primary) 30%, transparent) !important;
+}
+
+.rs-code .cm-matchingBracket {
+    background: var(--primary-soft);
+    outline: 1px solid var(--primary);
+}
+
+.rs-code .cm-panels {
+    background: var(--surface2);
+    color: var(--ink);
+}
+
+.rs-plain {
+    width: 100%;
+    height: 100%;
+    padding: var(--sp-3);
+    border: 0;
+    resize: none;
+    background: var(--surface);
+    color: var(--ink);
+    font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    tab-size: 2;
+}
+
+.rs-plain:focus {
+    outline: none;
+}
+
+.rs-preview {
+    background: #525659;
+}
+
+.rs-preview iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+}
+
+.rs-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-3);
+    padding: var(--sp-5);
+    background: var(--surface);
+    color: var(--muted);
+}
+
+.rs-overlay-soft {
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
+    backdrop-filter: blur(1px);
+}
+
+.rs-log {
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+}
+
+.rs-log summary {
+    padding: var(--sp-2) var(--sp-3);
+    cursor: pointer;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.rs-log pre {
+    max-height: 200px;
+    overflow: auto;
+    margin: 0;
+    padding: 0 var(--sp-3) var(--sp-3);
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--muted);
+}
+
+.rs-side-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--sp-4);
+}
+
+.rs-suggestion {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    padding: var(--sp-3);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--warn);
+    border-radius: var(--r-md);
+    background: var(--surface);
+}
+
+.rs-suggestion[data-severity='high'] {
+    border-left-color: var(--error);
+}
+
+.rs-suggestion[data-severity='low'] {
+    border-left-color: var(--info);
+}
+
+@media (max-width: 1199px) {
+    .rs-main {
+        grid-template-columns: var(--rs-cols, minmax(0, 1fr) 12px minmax(0, 1fr) 12px 320px);
+    }
+}
+
+/* Narrow screens show one pane at a time, picked with the switcher. */
+@media (max-width: 999px) {
+    .rs-pane-switch {
+        display: block;
+    }
+
+    .rs-main {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .rs-main .rs-pane {
+        display: none;
+    }
+
+    .rs-main[data-pane='code'] .rs-pane-code,
+    .rs-main[data-pane='preview'] .rs-pane-preview,
+    .rs-main[data-pane='side'] .rs-pane-side {
+        display: flex;
+    }
+
+    .rs-hide-sm {
+        display: none;
+    }
+
+    .rs-topbar {
+        flex-wrap: wrap;
+        padding: var(--sp-2) var(--sp-3);
+    }
+}
+
+@media (max-width: 799px) {
+    /* Icon beside the text keeps the three options short on a phone. */
+    .rs-option {
+        flex-direction: row;
+        align-items: flex-start;
+    }
+
+    .rs-option .icon-tile {
+        flex: none;
+    }
+}
+
+/* ---------- Resizable panes (drag handles between them) ---------- */
+
+.rs-resizer {
+    position: relative;
+    cursor: col-resize;
+    touch-action: none;
+    outline: none;
+}
+
+/* A thin line in the middle of the 12px handle, which lights up on hover, focus and drag. */
+.rs-resizer::after {
+    content: "";
+    position: absolute;
+    top: 12px;
+    bottom: 12px;
+    left: 50%;
+    width: 2px;
+    margin-left: -1px;
+    border-radius: 2px;
+    background: transparent;
+    transition: background var(--dur-fast) ease;
+}
+
+.rs-resizer:hover::after,
+.rs-resizer:focus-visible::after,
+.rs-dragging .rs-resizer::after {
+    background: var(--primary);
+}
+
+/* While dragging, the PDF iframe must not swallow the pointer, and text must not get selected. */
+.rs-dragging {
+    cursor: col-resize;
+    user-select: none;
+}
+
+.rs-dragging iframe,
+.rs-dragging .rs-code {
+    pointer-events: none;
+}
+
+@media (max-width: 999px) {
+    .rs-main .rs-resizer {
+        display: none;
+    }
+
+    .rs-main {
+        gap: var(--sp-3);
+    }
+}

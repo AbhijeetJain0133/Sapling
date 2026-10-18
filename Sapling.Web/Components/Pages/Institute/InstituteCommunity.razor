@@ -1,0 +1,298 @@
+@page "/institute/community"
+@namespace Sapling.Web.Components.Pages.Institute
+@layout InstituteLayout
+@attribute [Authorize]
+@inject InstituteService Institutes
+@inject IJSRuntime Js
+
+<PageTitle>Community · Sapling</PageTitle>
+
+<div class="stack g-5" style="max-width:860px">
+    <div class="page-head" style="margin-bottom:0">
+        <div class="stack g-1">
+            <span class="page-eyebrow hue-community">Your feed</span>
+            <h1 style="font-size:28px;line-height:34px">Community</h1>
+            <span class="t-muted">What your students see. Only your college can post here.</span>
+        </div>
+        <button type="button" class="btn btn-primary" @onclick="() => OpenComposer(null)">
+            <SapIcon Name="plus" Size="15" />
+            New post
+        </button>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="badge badge-error" role="alert" style="padding:10px 14px;border-radius:var(--r-md);white-space:normal">
+            <SapIcon Name="alert-circle" Size="15" />
+            @_error
+        </div>
+    }
+
+    <label class="row g-2 t-small">
+        <input type="checkbox" checked="@_showArchived" @onchange="ToggleArchivedAsync" />
+        Show archived posts
+    </label>
+
+    @if (_posts is null)
+    {
+        <div class="stack g-3">
+            @for (var i = 0; i < 3; i++)
+            {
+                <div class="card"><div class="skeleton" style="height:120px"></div></div>
+            }
+        </div>
+    }
+    else if (_posts.Count == 0)
+    {
+        <SapEmptyState Title="Nothing posted yet" Icon="megaphone" Art="community" Hue="community"
+                       Description="Announce a workshop, a placement drive or an event and every student of your college sees it.">
+            <button type="button" class="btn btn-primary" @onclick="() => OpenComposer(null)">Write the first post</button>
+        </SapEmptyState>
+    }
+    else
+    {
+        <div class="stack g-3">
+            @foreach (var post in _posts)
+            {
+                <div class="card stack g-3 staff-post hue-@CommunityDisplay.Hue(post.Kind)" @key="post.Id">
+                    <div class="row between g-2 wrap">
+                        <div class="row g-2 wrap">
+                            <SapBadge Tone="solid" Class="@($"hue-{CommunityDisplay.Hue(post.Kind)}")" Icon="@CommunityDisplay.Icon(post.Kind)">@post.Kind</SapBadge>
+                            @if (post.IsPinned)
+                            {
+                                <SapBadge Tone="primary" Icon="pin">Pinned</SapBadge>
+                            }
+                            @if (post.IsArchived)
+                            {
+                                <SapBadge Tone="neutral" Icon="archive">Archived</SapBadge>
+                            }
+                        </div>
+                        <span class="t-caption t-subtle">@CommunityDisplay.Ago(post.PostedAt)</span>
+                    </div>
+
+                    <div class="stack g-1">
+                        <h4>@post.Title</h4>
+                        <span class="t-small t-muted" style="white-space:pre-wrap">@Clamp(post.Body)</span>
+                    </div>
+
+                    @if (post.StartsAt is { } starts)
+                    {
+                        <span class="t-caption t-subtle row g-2">
+                            <SapIcon Name="calendar" Size="14" />
+                            @CommunityDisplay.When(starts)@(post.Venue is null ? "" : $" · {post.Venue}")
+                        </span>
+                    }
+
+                    <div class="row g-3 t-caption t-subtle wrap">
+                        <span class="row g-1"><SapIcon Name="arrow-up" Size="14" /> @post.Upvotes upvotes</span>
+                        <span class="row g-1"><SapIcon Name="message" Size="14" /> @post.CommentCount comments</span>
+                        <span class="row g-1"><SapIcon Name="bookmark" Size="14" /> @post.SaveCount saved</span>
+                    </div>
+
+                    <div class="row g-2 wrap">
+                        <button type="button" class="btn btn-secondary btn-sm" @onclick="() => OpenCommentsAsync(post)">
+                            <SapIcon Name="message" Size="14" />
+                            Comments
+                        </button>
+                        <button type="button" class="btn btn-ghost btn-sm" @onclick="() => OpenComposer(post)">
+                            <SapIcon Name="edit-2" Size="14" />
+                            Edit
+                        </button>
+                        <button type="button" class="btn btn-ghost btn-sm" @onclick="() => PinAsync(post, !post.IsPinned)">
+                            <SapIcon Name="pin" Size="14" />
+                            @(post.IsPinned ? "Unpin" : "Pin")
+                        </button>
+                        <button type="button" class="btn btn-ghost btn-sm" @onclick="() => ArchiveAsync(post, !post.IsArchived)">
+                            <SapIcon Name="archive" Size="14" />
+                            @(post.IsArchived ? "Unarchive" : "Archive")
+                        </button>
+                        <button type="button" class="btn btn-ghost btn-sm t-error" @onclick="() => _confirmDelete = post">
+                            <SapIcon Name="trash" Size="14" />
+                            Delete
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@if (_composer is not null)
+{
+    <InstitutePostComposer Draft="_composer" OnSaved="OnComposerSavedAsync" OnClose="() => _composer = null" />
+}
+
+@if (_confirmDelete is { } doomed)
+{
+    <SapModal Title="Delete this post?" OnClose="() => _confirmDelete = null">
+        <ChildContent>
+            <p class="t-small t-muted">
+                "@doomed.Title" and its @doomed.CommentCount comment@(doomed.CommentCount == 1 ? "" : "s") go for good.
+                Archive it instead if you only want it out of the feed.
+            </p>
+        </ChildContent>
+        <Footer>
+            <div class="row g-2" style="justify-content:flex-end">
+                <button type="button" class="btn btn-ghost" @onclick="() => _confirmDelete = null">Cancel</button>
+                <button type="button" class="btn btn-danger" @onclick="() => DeleteAsync(doomed)">Delete</button>
+            </div>
+        </Footer>
+    </SapModal>
+}
+
+@if (_comments is not null && _commentsFor is { } thread)
+{
+    <SapModal Title="@($"Comments on \"{thread.Title}\"")" OnClose="CloseComments">
+        <ChildContent>
+            @if (_comments.Count == 0)
+            {
+                <span class="t-small t-muted">No comments yet.</span>
+            }
+            else
+            {
+                <div class="stack g-4">
+                    @foreach (var comment in _comments)
+                    {
+                        <div class="stack g-2" @key="comment.Id">
+                            <InstituteComment Comment="comment" OnDelete="() => DeleteCommentAsync(comment.Id)" />
+
+                            @foreach (var reply in comment.Replies)
+                            {
+                                <div style="padding-left:var(--sp-5)" @key="reply.Id">
+                                    <InstituteComment Comment="reply" OnDelete="() => DeleteCommentAsync(reply.Id)" />
+                                </div>
+                            }
+
+                            <div class="row g-2" style="padding-left:var(--sp-5)">
+                                <input class="input grow" placeholder="Reply as @(CollegeName)"
+                                       value="@(_replyTo == comment.Id ? _replyBody : "")"
+                                       @onfocus="() => _replyTo = comment.Id"
+                                       @oninput="OnReplyInput" />
+                                <button type="button" class="btn btn-secondary btn-sm"
+                                        disabled="@(_replyTo != comment.Id || _replyBody.Trim().Length == 0)"
+                                        @onclick="() => ReplyAsync(comment.Id)">
+                                    <SapIcon Name="send" Size="14" />
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </ChildContent>
+    </SapModal>
+}
+
+@code {
+    [CascadingParameter(Name = "Institute")] private InstituteProfileDto? Institute { get; set; }
+
+    private List<InstitutePostDto>? _posts;
+    private bool _showArchived;
+    private string? _error;
+
+    private InstitutePostDto? _composer;
+    private InstitutePostDto? _confirmDelete;
+
+    private InstitutePostDto? _commentsFor;
+    private IReadOnlyList<CommunityCommentDto>? _comments;
+    private int? _replyTo;
+    private string _replyBody = "";
+
+    private string CollegeName => Institute?.ShortName is { Length: > 0 } s ? s : Institute?.Name ?? "your college";
+
+    private void OnReplyInput(ChangeEventArgs e) => _replyBody = e.Value?.ToString() ?? "";
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync() => _posts = [.. await Institutes.GetPostsAsync(_showArchived)];
+
+    private async Task ToggleArchivedAsync(ChangeEventArgs e)
+    {
+        _showArchived = e.Value is true;
+        await ReloadAsync();
+    }
+
+    private void OpenComposer(InstitutePostDto? post) => _composer = post ?? Blank;
+
+    private static InstitutePostDto Blank => new(
+        0, PostKinds.Announcement, "", "", DateTimeOffset.UtcNow, null, null, null, null, null, [], false, false, 0, 0, 0);
+
+    private async Task OnComposerSavedAsync()
+    {
+        _composer = null;
+        _error = null;
+        await ReloadAsync();
+    }
+
+    private Task PinAsync(InstitutePostDto post, bool pinned) => RunAsync(() => Institutes.SetPinnedAsync(post.Id, pinned));
+
+    private Task ArchiveAsync(InstitutePostDto post, bool archived) => RunAsync(() => Institutes.SetArchivedAsync(post.Id, archived));
+
+    private async Task DeleteAsync(InstitutePostDto post)
+    {
+        _confirmDelete = null;
+        await Institutes.DeletePostAsync(post.Id);
+        await ReloadAsync();
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        _error = null;
+        try
+        {
+            await action();
+            await ReloadAsync();
+        }
+        catch (Exception e) when (e is ArgumentException or InvalidOperationException)
+        {
+            _error = e.Message;
+        }
+    }
+
+    private async Task OpenCommentsAsync(InstitutePostDto post)
+    {
+        _commentsFor = post;
+        _replyTo = null;
+        _replyBody = "";
+        _comments = await Institutes.GetCommentsAsync(post.Id);
+    }
+
+    private void CloseComments()
+    {
+        _commentsFor = null;
+        _comments = null;
+    }
+
+    private async Task ReplyAsync(int parentId)
+    {
+        if (_commentsFor is not { } post)
+        {
+            return;
+        }
+
+        try
+        {
+            _comments = await Institutes.ReplyAsync(post.Id, new AddCommentRequest(_replyBody, parentId));
+            _replyBody = "";
+            _replyTo = null;
+            await ReloadAsync();
+        }
+        catch (ArgumentException e)
+        {
+            _error = e.Message;
+        }
+    }
+
+    private async Task DeleteCommentAsync(int commentId)
+    {
+        if (_commentsFor is not { } post)
+        {
+            return;
+        }
+
+        await Institutes.DeleteCommentAsync(post.Id, commentId);
+        _comments = await Institutes.GetCommentsAsync(post.Id);
+        await ReloadAsync();
+    }
+
+    private static string Clamp(string body) => body.Length <= 280 ? body : body[..280] + "…";
+}

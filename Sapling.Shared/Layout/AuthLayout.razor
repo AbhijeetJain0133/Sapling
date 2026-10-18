@@ -1,0 +1,103 @@
+@namespace Sapling.Shared.Layout
+@inherits LayoutComponentBase
+@inject IFormFactor FormFactor
+
+@if (FormFactor.Kind == FormFactorKind.Mobile)
+{
+    <div class="auth-mobile">
+        <div class="auth-mobile-top">
+            <div class="row between" style="padding:0 var(--sp-4) var(--sp-3)">
+                <SapLogo Size="28" WordSize="18" />
+            </div>
+            <div class="grow" style="padding:0 var(--sp-4);display:flex;align-items:center">
+                <SapCarousel TItem="Feature" Items="FeatureCatalog.All" IntervalMs="4500" Class="grow">
+                    <ItemTemplate Context="feature">
+                        <div class="auth-mobile-tile">
+                            <SapFeatureCard Feature="feature" />
+                        </div>
+                    </ItemTemplate>
+                </SapCarousel>
+            </div>
+        </div>
+        <div class="auth-mobile-form">
+            @Body
+        </div>
+    </div>
+}
+else
+{
+    <div class="landing">
+        <section class="landing-hero container">
+            <div class="landing-copy stack g-4">
+                <div class="row between g-3 wrap">
+                    <SapLogo Size="34" WordSize="22" />
+                    @* Institute accounts are web-only, so this sits in the desktop branch. *@
+                    <a class="btn btn-ghost btn-sm" href="/institute/signin" data-enhance-nav="false">
+                        <SapIcon Name="building" Size="15" />
+                        Institute login
+                    </a>
+                </div>
+                <span class="page-eyebrow hue-brand">Campus to corporate</span>
+                <h1 class="landing-h1">Find the roles you <span class="t-grad-brand">fit</span>, and close the gap.</h1>
+                <p class="t-muted landing-lede">
+                    Sapling matches your course and skills against 104 real career paths, shows how well you fit
+                    each one and why, and builds a week-by-week plan to close the gap.
+                </p>
+                <ul class="stats-strip" role="list">
+                    <li><b>104</b><span>career paths</span></li>
+                    <li><b>@FeatureCatalog.Count</b><span>modules</span></li>
+                    <li><b>Free</b><span>IIT NPTEL courses</span></li>
+                    <li><b>14</b><span>exams tracked</span></li>
+                </ul>
+                <ul class="stack g-2 landing-points" style="list-style:none;margin:0;padding:0">
+                    @foreach (var point in Points)
+                    {
+                        <li class="row-top g-2">
+                            <span class="landing-point-icon"><SapIcon Name="check" Size="13" Stroke="3" /></span>
+                            <span class="t-small">@point</span>
+                        </li>
+                    }
+                </ul>
+            </div>
+
+            <div class="auth-card card auth-card-float">
+                @Body
+            </div>
+
+            <SapArt Name="auth-hero" Class="landing-art" />
+
+            <a class="landing-peek" href="#features" aria-label="See what is inside">
+                <span class="peek-track">
+                    @foreach (var feature in FeatureCatalog.All.Concat(FeatureCatalog.All))
+                    {
+                        <span class="peek-tile hue-@feature.Hue" aria-hidden="true">
+                            <SapIcon Name="@feature.Icon" Size="15" />
+                            @feature.Title
+                        </span>
+                    }
+                </span>
+                <span class="auth-scrollcue">
+                    See what is inside
+                    <SapIcon Name="arrow-down" Size="16" />
+                </span>
+            </a>
+        </section>
+    </div>
+
+    <AuthShowcase />
+}
+
+<div id="blazor-error-ui" data-nosnippet>
+    Something went wrong.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">&times;</span>
+</div>
+
+@code {
+    private static string[] Points =>
+    [
+        $"{FeatureCatalog.Count} modules, from career discovery to a scored mock interview.",
+        "Corporate roles and government exams in one engine.",
+        "Every recommendation comes with a plain-language reason.",
+    ];
+}

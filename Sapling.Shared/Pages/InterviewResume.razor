@@ -1,0 +1,160 @@
+@page "/interview/{Id:int}/resume"
+@namespace Sapling.Shared.Pages
+@inject IInterviewService Interviews
+@inject IFormFactor FormFactor
+@inject NavigationManager Nav
+
+<PageTitle>Upload resume · Mock interview · Sapling</PageTitle>
+<RecordVisit Feature="@FeatureCatalog.Interview" />
+
+@if (FormFactor.Platform != "Web")
+{
+    <SapEmptyState Title="Open Sapling on the web" Icon="monitor" Art="interview" Hue="interview"
+                   Description="Voice interviews run in Chrome or Edge on the Sapling website.">
+        <a class="btn btn-secondary" href="/interview">Back to interviews</a>
+    </SapEmptyState>
+}
+else if (_interview is null)
+{
+    <div class="card"><div class="skeleton" style="height:240px"></div></div>
+}
+else
+{
+    <div class="stack g-5" style="max-width:720px">
+        <div class="stack g-1">
+            <a class="t-small row g-1" href="/interview"><SapIcon Name="arrow-left" Size="14" /> Mock interview</a>
+            <h1 style="font-size:26px;line-height:32px">Add your resume</h1>
+            <span class="t-muted">
+                The interviewer for <b>@_interview.RoleTitle</b> will ask about the projects and experience on it, like a real interviewer would.
+                It's optional: without it, questions use your Sapling profile.
+            </span>
+        </div>
+
+        <div class="card stack g-4">
+            @if (_interview.HasResume)
+            {
+                <div class="row g-3 wrap">
+                    <span class="icon-tile" style="background:var(--success-soft);color:var(--success-text)"><SapIcon Name="check" Size="20" /></span>
+                    <div class="stack grow" style="gap:2px;min-width:200px">
+                        <span style="font-weight:600">@_interview.ResumeFileName</span>
+                        <span class="t-caption t-subtle">Read @_interview.ResumeChars.ToString("N0") characters of text. The interviewer has it.</span>
+                    </div>
+                </div>
+            }
+            else if (_interview.ResumeWarning is { } warning)
+            {
+                <div class="row-top g-2 t-small" style="color:var(--warn-text)">
+                    <SapIcon Name="alert-triangle" Size="16" />
+                    <span>@warning</span>
+                </div>
+            }
+
+            <label class="iv-drop">
+                <SapIcon Name="upload" Size="26" />
+                <span style="font-weight:600">@(_uploading ? "Reading your resume…" : _interview.HasResume ? "Upload a different PDF" : "Choose your resume PDF")</span>
+                <span class="t-caption t-subtle">PDF only, up to 5 MB. Only the text is used.</span>
+                <InputFile accept=".pdf,application/pdf" OnChange="UploadAsync" disabled="@_uploading" aria-label="Choose resume PDF" />
+            </label>
+
+            @if (_error is not null)
+            {
+                <span class="field-error">@_error</span>
+            }
+
+            <div class="row between g-3 wrap">
+                <button type="button" class="btn btn-ghost" @onclick="SkipAsync" disabled="@_uploading">
+                    @(_interview.HasResume ? "Remove it and continue" : "Skip, continue without a resume")
+                </button>
+                <button type="button" class="btn btn-primary" @onclick="ContinueAsync" disabled="@(_uploading || !_interview.HasResume)">
+                    Go to interview
+                    <SapIcon Name="arrow-right" Size="15" />
+                </button>
+            </div>
+        </div>
+
+        <div class="card card-inset stack g-2">
+            <span class="t-overline t-subtle">Before you start</span>
+            <ul class="iv-list t-small t-muted">
+                <li>Use Chrome or Edge, and sit somewhere quiet. Headphones stop the interviewer's voice from being picked up as your answer.</li>
+                <li>Your browser will ask to use the microphone. Allow it.</li>
+                <li>Answer out loud. When you stop talking for a few seconds, your answer is sent. You can also press "Done answering".</li>
+                <li>Next you'll check your microphone, speaker and camera before joining. The interview is spoken, so a working microphone is needed.</li>
+            </ul>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private InterviewDto? _interview;
+    private bool _uploading;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _interview = await Interviews.GetAsync(Id);
+        if (_interview is null)
+        {
+            Nav.NavigateTo("/interview");
+        }
+        else if (_interview.Status is "Live")
+        {
+            Nav.NavigateTo($"/interview/{Id}/live");
+        }
+        else if (_interview.Status is "Complete")
+        {
+            Nav.NavigateTo($"/interview/{Id}/report");
+        }
+    }
+
+    private async Task UploadAsync(InputFileChangeEventArgs e)
+    {
+        _error = null;
+        const long max = 5 * 1024 * 1024;
+        if (e.File.Size > max)
+        {
+            _error = "That file is over 5 MB. Upload a smaller PDF.";
+            return;
+        }
+
+        _uploading = true;
+        try
+        {
+            using var buffer = new MemoryStream();
+            await using (var stream = e.File.OpenReadStream(max))
+            {
+                await stream.CopyToAsync(buffer);
+            }
+
+            _interview = await Interviews.AttachResumeAsync(Id, e.File.Name, buffer.ToArray());
+        }
+        catch (InterviewProblemException ex)
+        {
+            _error = ex.Message;
+        }
+        catch (IOException)
+        {
+            _error = "The upload didn't finish. Try again.";
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private async Task SkipAsync()
+    {
+        try
+        {
+            await Interviews.SkipResumeAsync(Id);
+            Nav.NavigateTo($"/interview/{Id}/live");
+        }
+        catch (InterviewProblemException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void ContinueAsync() => Nav.NavigateTo($"/interview/{Id}/live");
+}

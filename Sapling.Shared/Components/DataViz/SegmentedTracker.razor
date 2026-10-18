@@ -1,0 +1,22 @@
+@namespace Sapling.Shared.Components
+
+<div class="stack g-1">
+    <div class="segments" role="progressbar" aria-valuenow="@Completed" aria-valuemin="0" aria-valuemax="@Total">
+        @for (var i = 0; i < Total; i++)
+        {
+            <i class="@(i < Completed ? "on" : null)"></i>
+        }
+    </div>
+    @if (!string.IsNullOrEmpty(Caption))
+    {
+        <span class="t-caption t-subtle">@Caption</span>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public int Total { get; set; }
+
+    [Parameter, EditorRequired] public int Completed { get; set; }
+
+    [Parameter] public string? Caption { get; set; }
+}

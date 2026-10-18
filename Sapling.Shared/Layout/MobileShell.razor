@@ -1,0 +1,166 @@
+@namespace Sapling.Shared.Layout
+@implements IDisposable
+@inject NavigationManager Nav
+@inject AssistantChat Chat
+@inject IProfileService Profiles
+
+<div class="shell-mobile">
+    <header class="topbar">
+        @if (ShowBack)
+        {
+            <button type="button" class="btn btn-ghost btn-icon btn-sm" @onclick="GoBack" aria-label="Back">
+                <SapIcon Name="chevron-left" Size="20" />
+            </button>
+        }
+        else
+        {
+            <SapLogo Size="26" ShowWord="false" />
+        }
+        <span class="topbar-title grow">@Title</span>
+        <NavLink href="/profile" aria-label="Profile">
+            @if (!string.IsNullOrEmpty(_avatarUrl))
+            {
+                <img src="@_avatarUrl" alt="" class="avatar" style="width:30px;height:30px;object-fit:cover;border-radius:var(--r-pill)" />
+            }
+            else
+            {
+                <span class="avatar" style="width:30px;height:30px;font-size:12px">@Initials</span>
+            }
+        </NavLink>
+    </header>
+
+    <main class="page">
+        @ChildContent
+    </main>
+
+    <SaplingChat />
+
+    <nav class="tabbar">
+        @for (var i = 0; i < Navigation.Tabs.Count; i++)
+        {
+            var entry = Navigation.Tabs[i];
+            if (i == Navigation.TabsBeforeAi)
+            {
+                <ChatTab />
+            }
+            <NavLink class="@($"tab tab-icon-only hue-{entry.Hue}")" href="@entry.Route" aria-label="@entry.Label" title="@entry.Label"
+                     Match="@(entry.ExactMatch ? NavLinkMatch.All : NavLinkMatch.Prefix)" @onclick="Chat.Close">
+                <SapIcon Name="@entry.Icon" Size="25" Stroke="2" />
+            </NavLink>
+        }
+        <button type="button" class="tab tab-icon-only @(_moreOpen ? "active" : null)" aria-label="More" title="More" @onclick="OpenMore">
+            <SapIcon Name="grid" Size="25" Stroke="2" />
+        </button>
+    </nav>
+</div>
+
+@if (_moreOpen)
+{
+    <SapModal Sheet Title="All features" OnClose="() => _moreOpen = false">
+        <div class="stack g-1">
+            @foreach (var entry in Navigation.MoreSheet)
+            {
+                <NavLink class="@($"nav-item hue-{entry.Hue}")" href="@entry.Route" @onclick="() => _moreOpen = false">
+                    <SapIcon Name="@entry.Icon" Size="18" Stroke="2" />
+                    <span class="grow">@entry.Label</span>
+                    <SapIcon Name="chevron-right" Size="16" />
+                </NavLink>
+            }
+        </div>
+    </SapModal>
+}
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    private bool _moreOpen;
+    private string _path = "/home";
+    private string? _avatarUrl;
+    private bool _avatarLoaded;
+
+    private string DisplayName { get; set; } = "Student";
+
+    private string Initials => string.Concat(
+        DisplayName.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Take(2)
+            .Select(part => char.ToUpperInvariant(part[0])));
+
+    private bool ShowBack => Navigation.Tabs.All(t => !Matches(t.Route));
+
+    private string Title => Navigation.Primary.Concat(Navigation.MoreSheet)
+        .FirstOrDefault(e => Matches(e.Route))?.Label ?? "Sapling";
+
+    private bool Matches(string route) =>
+        route == "/home" ? _path is "/home" or "/" : _path.StartsWith(route, StringComparison.OrdinalIgnoreCase);
+
+    protected override void OnInitialized()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+        _path = CurrentPath();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (AuthState is null)
+        {
+            return;
+        }
+
+        var state = await AuthState;
+        var name = state.User.FindFirst("full_name")?.Value ?? state.User.Identity?.Name;
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            DisplayName = name.Contains('@') ? name[..name.IndexOf('@')] : name;
+        }
+
+        if (!_avatarLoaded && state.User.Identity?.IsAuthenticated == true)
+        {
+            _avatarLoaded = true;
+            await LoadAvatarAsync();
+        }
+    }
+
+    /// <summary>The photo is fetched once, and again after a visit to Profile, where it can be changed.</summary>
+    private async Task LoadAvatarAsync()
+    {
+        try
+        {
+            _avatarUrl = (await Profiles.GetAsync()).AvatarDataUrl;
+        }
+        catch (Exception e) when (e is HttpRequestException or InvalidOperationException or OperationCanceledException)
+        {
+            // Offline or signed out: the initials stay.
+        }
+    }
+
+    private string CurrentPath() => "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0].TrimEnd('/');
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        var leftProfile = _path.StartsWith("/profile", StringComparison.OrdinalIgnoreCase);
+        _path = CurrentPath();
+        _moreOpen = false;
+        StateHasChanged();
+
+        if (leftProfile)
+        {
+            _ = InvokeAsync(async () =>
+            {
+                await LoadAvatarAsync();
+                StateHasChanged();
+            });
+        }
+    }
+
+    private void GoBack() => Nav.NavigateTo("/home");
+
+    private void OpenMore()
+    {
+        Chat.Close();
+        _moreOpen = true;
+    }
+
+    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
+}

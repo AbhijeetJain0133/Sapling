@@ -1,0 +1,208 @@
+@namespace Sapling.Shared.Components
+@implements IAsyncDisposable
+@inject IJSRuntime Js
+
+<SapModal Title="@(_isEditorActive ? "Adjust photo" : "Profile photo")" OnClose="OnClose">
+    <ChildContent>
+        @if (!_isEditorActive)
+        {
+            <div class="avatar-modal-body">
+                @if (!string.IsNullOrEmpty(CurrentAvatarUrl))
+                {
+                    <div class="avatar-current-wrap">
+                        <img src="@CurrentAvatarUrl" alt="Current avatar" class="avatar avatar-xl" style="width:96px;height:96px;box-shadow:var(--shadow-card);border:3px solid var(--surface);object-fit:cover" />
+                        <span class="t-caption t-subtle">Current photo</span>
+                    </div>
+                }
+
+                <label class="avatar-upload-zone" for="avatarFileInput">
+                    <div class="avatar-upload-icon">
+                        <SapIcon Name="camera" Size="28" />
+                    </div>
+                    <div class="stack g-1 items-center text-center">
+                        <span style="font-weight:600;font-size:15px;color:var(--ink)">Choose a photo</span>
+                        <span class="t-caption t-subtle" style="font-size:12.5px">PNG, JPG or WEBP · Drag and drop or browse</span>
+                    </div>
+                    <span class="btn btn-secondary btn-sm" style="pointer-events:none;margin-top:var(--sp-1);padding:0 var(--sp-4)">
+                        Browse files
+                    </span>
+                    <input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="window.sapling.avatarEditor.handleFileInput(this)" />
+                </label>
+
+                @if (!string.IsNullOrEmpty(CurrentAvatarUrl))
+                {
+                    <button type="button" class="btn btn-ghost btn-sm t-error" @onclick="RemovePhotoAsync" disabled="@_isSaving" style="margin-top:var(--sp-1)">
+                        <SapIcon Name="trash" Size="14" />
+                        Remove current photo
+                    </button>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="avatar-crop-wrap">
+                <canvas id="avatarCropCanvas" class="avatar-crop-canvas" width="300" height="300" style="width:300px;height:300px;max-width:100%"></canvas>
+
+                <div class="avatar-crop-controls" style="margin-top:var(--sp-2)">
+                    <button type="button" class="btn btn-ghost btn-icon btn-sm" @onclick="() => ZoomDeltaAsync(-0.15)" title="Zoom out" aria-label="Zoom out">
+                        <SapIcon Name="zoom-out" Size="16" />
+                    </button>
+                    <input type="range" min="0" max="100" value="@_zoomPercent" @oninput="OnZoomSliderInput" class="zoom-track" aria-label="Zoom level" />
+                    <button type="button" class="btn btn-ghost btn-icon btn-sm" @onclick="() => ZoomDeltaAsync(0.15)" title="Zoom in" aria-label="Zoom in">
+                        <SapIcon Name="zoom-in" Size="16" />
+                    </button>
+                </div>
+
+                <div class="row g-2 center" style="margin-top:var(--sp-1)">
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="RotateAsync" title="Rotate clockwise">
+                        <SapIcon Name="rotate-cw" Size="14" />
+                        Rotate
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="ResetAsync" title="Reset view">
+                        Reset
+                    </button>
+                    <label class="btn btn-secondary btn-sm" for="changeAvatarInput" style="cursor:pointer">
+                        <SapIcon Name="upload" Size="14" />
+                        Change file
+                        <input type="file" id="changeAvatarInput" accept="image/*" style="display:none" onchange="window.sapling.avatarEditor.handleFileInput(this)" />
+                    </label>
+                </div>
+
+                <span class="t-caption t-subtle" style="font-size:11.5px">Drag to reposition · Scroll or pinch to zoom</span>
+            </div>
+        }
+    </ChildContent>
+    <Footer>
+        <button type="button" class="btn btn-ghost" @onclick="OnClose" disabled="@_isSaving">
+            Cancel
+        </button>
+        @if (_isEditorActive)
+        {
+            <button type="button" class="btn btn-primary" @onclick="SavePhotoAsync" disabled="@_isSaving">
+                @if (_isSaving)
+                {
+                    <span class="spinner" style="width:14px;height:14px"></span>
+                    <span>Saving...</span>
+                }
+                else
+                {
+                    <SapIcon Name="check" Size="14" />
+                    <span>Apply photo</span>
+                }
+            </button>
+        }
+    </Footer>
+</SapModal>
+
+@code {
+    [Parameter] public string? CurrentAvatarUrl { get; set; }
+    [Parameter] public EventCallback<string?> OnSave { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private bool _isEditorActive;
+    private bool _needsCanvasInit;
+    private int _zoomPercent;
+    private bool _isSaving;
+    private DotNetObjectReference<AvatarEditorModal>? _dotNetRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await Js.InvokeVoidAsync("sapling.avatarEditor.bind", _dotNetRef);
+        }
+
+        if (_needsCanvasInit && _isEditorActive)
+        {
+            _needsCanvasInit = false;
+            await Js.InvokeVoidAsync("sapling.avatarEditor.initCanvas", "avatarCropCanvas");
+        }
+    }
+
+    [JSInvokable]
+    public void OnImageSelected()
+    {
+        _isEditorActive = true;
+        _needsCanvasInit = true;
+        _zoomPercent = 0;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnImageLoaded()
+    {
+        _zoomPercent = 0;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnZoomChanged(int percent)
+    {
+        _zoomPercent = percent;
+        StateHasChanged();
+    }
+
+    private async Task OnZoomSliderInput(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var val))
+        {
+            _zoomPercent = val;
+            await Js.InvokeVoidAsync("sapling.avatarEditor.setZoomSlider", val);
+        }
+    }
+
+    private async Task ZoomDeltaAsync(double delta)
+    {
+        await Js.InvokeVoidAsync("sapling.avatarEditor.zoomDelta", delta);
+    }
+
+    private async Task RotateAsync()
+    {
+        await Js.InvokeVoidAsync("sapling.avatarEditor.rotate");
+    }
+
+    private async Task ResetAsync()
+    {
+        _zoomPercent = 0;
+        await Js.InvokeVoidAsync("sapling.avatarEditor.reset");
+    }
+
+    private async Task SavePhotoAsync()
+    {
+        _isSaving = true;
+        try
+        {
+            var cropped = await Js.InvokeAsync<string?>("sapling.avatarEditor.getResult", 256);
+            await OnSave.InvokeAsync(cropped);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task RemovePhotoAsync()
+    {
+        _isSaving = true;
+        try
+        {
+            await OnSave.InvokeAsync(null);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await Js.InvokeVoidAsync("sapling.avatarEditor.destroy");
+        }
+        catch { }
+
+        _dotNetRef?.Dispose();
+    }
+}

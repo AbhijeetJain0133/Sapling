@@ -1,0 +1,329 @@
+@page "/career"
+@page "/paths"
+@page "/skills"
+@namespace Sapling.Shared.Pages
+@inject ICareerService Careers
+@inject ISkillGapService Gaps
+@inject NavigationManager Nav
+@inject AssistantChat Chat
+@implements IDisposable
+
+<PageTitle>Career &amp; skills · Sapling</PageTitle>
+<RecordVisit Feature="@FeatureCatalog.CareerPaths" />
+
+@if (_coverage is null)
+{
+    <div class="card stack g-3">
+        <div class="skeleton" style="height:28px;width:50%"></div>
+        <div class="skeleton" style="height:160px"></div>
+    </div>
+}
+else if (Choosing)
+{
+    <div class="stack g-5">
+        <div class="page-head">
+            <div class="stack g-1">
+                <h1 style="font-size:28px;line-height:34px">@(_coverage.TargetChosen ? "Change your career" : "Choose your career")</h1>
+                <span class="t-muted">Every role, ranked by how well it fits you. Open one to read it in full, then make it your target.</span>
+            </div>
+            @if (_coverage.TargetChosen)
+            {
+                <a class="btn btn-secondary btn-sm" href="/career">
+                    <SapIcon Name="chevron-left" Size="15" />
+                    Back to @_coverage.RoleName
+                </a>
+            }
+        </div>
+
+        <CareerChooser />
+    </div>
+}
+else if (_path is not null && _gaps is not null)
+{
+    @* The target view answers three things in order: how well do I fit, what do I do next, what am I missing.
+       Everything else about the role sits behind "About this role". *@
+    <div class="stack g-5">
+        <section class="g-card hue-career career-top">
+            <div class="career-top-row">
+                <ScoreRing Value="_path.FitScore" Size="116" Thickness="10" Label="Fit" OnLight />
+                <div class="stack career-top-who">
+                    <span class="t-overline">Your target role</span>
+                    <h1>@_path.Title</h1>
+                    <div class="row g-2 wrap">
+                        <SapBadge Tone="@CareerDetails.TierTone(_path.Tier)">@_path.Tier</SapBadge>
+                        @if (_path.Outlook.Count > 0)
+                        {
+                            <SapBadge Tone="success" Icon="trending-up">@JobOutlook.Label(_path.Outlook[0])</SapBadge>
+                        }
+                    </div>
+                </div>
+                <div class="career-meters" aria-label="How the fit score is made up">
+                    <div class="career-meter">
+                        <span>Skills</span>
+                        <span class="career-meter-bar"><i style="width:@(_path.Fit.Skills)%"></i></span>
+                        <b>@_path.Fit.Skills%</b>
+                    </div>
+                    @if (_path.Fit.Course is { } course)
+                    {
+                        <div class="career-meter">
+                            <span>Your course</span>
+                            <span class="career-meter-bar"><i style="width:@(course)%"></i></span>
+                            <b>@course%</b>
+                        </div>
+                    }
+                    @if (_path.Fit.Interests is { } interests)
+                    {
+                        <div class="career-meter">
+                            <span>Interests</span>
+                            <span class="career-meter-bar"><i style="width:@(interests)%"></i></span>
+                            <b>@interests%</b>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="row g-2 wrap">
+                <a class="btn btn-onlight btn-sm" href="/roadmap">
+                    <SapIcon Name="route" Size="15" />
+                    Open roadmap
+                </a>
+                <a class="btn btn-glass btn-sm" href="/paths">
+                    <SapIcon Name="compass" Size="15" />
+                    Change career
+                </a>
+            </div>
+        </section>
+
+        <div class="stack g-2">
+            <button type="button" class="ask-bar" @onclick="() => Chat.Open()">
+                <SapAiMark Size="24" />
+                <span>Ask Sapling AI anything about this role</span>
+                <span class="ask-bar-go"><SapIcon Name="arrow-right" Size="16" Stroke="2" /></span>
+            </button>
+            <div class="ask-ideas">
+                @foreach (var idea in Ideas)
+                {
+                    <button type="button" class="chat-chip" @onclick="() => Chat.Open(idea)">@idea</button>
+                }
+            </div>
+        </div>
+
+        <div class="stack g-3">
+            <span class="section-title hue-career">What to do next</span>
+            <div class="next-grid">
+                <a class="tile next-tile hue-roadmap" href="/roadmap">
+                    <span class="icon-tile icon-tile-solid"><SapIcon Name="route" Size="18" /></span>
+                    <h4>@(Missing.Count == 0 ? "Keep learning" : $"Learn {Missing.Count} missing {(Missing.Count == 1 ? "skill" : "skills")}")</h4>
+                    <span class="t-caption">A free course for each one</span>
+                </a>
+                <a class="tile next-tile hue-interview" href="/interview">
+                    <span class="icon-tile icon-tile-solid"><SapIcon Name="mic" Size="18" /></span>
+                    <h4>Practise the interview</h4>
+                    <span class="t-caption">A spoken mock interview for this role</span>
+                </a>
+                <a class="tile next-tile hue-resume" href="/resume">
+                    <span class="icon-tile icon-tile-solid"><SapIcon Name="file-text" Size="18" /></span>
+                    <h4>Fix your resume</h4>
+                    <span class="t-caption">Score it and apply the fixes</span>
+                </a>
+                <a class="tile next-tile hue-opportunities" href="/opportunities">
+                    <span class="icon-tile icon-tile-solid"><SapIcon Name="briefcase" Size="18" /></span>
+                    <h4>See openings</h4>
+                    <span class="t-caption">Internships and jobs that match</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="grid grid-2">
+            <SapCard Title="@(Missing.Count == 0 ? "Nothing missing" : "Skills to learn")"
+                     Subtitle="@($"You have {_path.Have} of the {_path.Total} things this role asks for")">
+                <ChildContent>
+                    @if (Missing.Count == 0)
+                    {
+                        <span class="t-small t-muted">You cover everything this role asks for. Practise the interview next.</span>
+                    }
+                    else
+                    {
+                        <div class="skill-rows">
+                            @foreach (var gap in Missing.Take(_allGaps ? int.MaxValue : TopGaps))
+                            {
+                                <div class="skill-row" @key="gap.Id">
+                                    <span class="skill-dot is-@gap.Severity.ToLowerInvariant()" title="@gap.Severity"></span>
+                                    <span class="skill-row-name">@gap.SkillName</span>
+                                    @if (gap.WeeksToClose > 0)
+                                    {
+                                        <span class="t-caption t-subtle">about @gap.WeeksToClose @(gap.WeeksToClose == 1 ? "week" : "weeks")</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </ChildContent>
+                <Footer>
+                    @if (Missing.Count > TopGaps)
+                    {
+                        <button type="button" class="btn btn-ghost btn-sm" @onclick="() => _allGaps = !_allGaps">
+                            @(_allGaps ? "Show fewer" : $"Show all {Missing.Count}")
+                        </button>
+                    }
+                    @if (Missing.Count > 0)
+                    {
+                        <a class="btn btn-secondary btn-sm" href="/roadmap">Start learning</a>
+                    }
+                </Footer>
+            </SapCard>
+
+            <SapCard Title="Skills you already have" Subtitle="What this role asks for that you cover">
+                <ChildContent>
+                    @if (Covered.Count == 0)
+                    {
+                        <span class="t-small t-muted">Nothing yet. Every skill you add moves your fit.</span>
+                    }
+                    else
+                    {
+                        <div class="row g-2 wrap">
+                            @foreach (var gap in Covered)
+                            {
+                                <span class="chip chip-selected">
+                                    <SapIcon Name="check" Size="13" Stroke="2.5" />
+                                    @gap.SkillName
+                                </span>
+                            }
+                        </div>
+                    }
+                </ChildContent>
+                <Footer>
+                    <a class="btn btn-ghost btn-sm" href="/onboarding/skills">Edit my skills</a>
+                </Footer>
+            </SapCard>
+        </div>
+
+        <details class="card about-role">
+            <summary>
+                About this role
+                <SapIcon Name="chevron-down" Size="18" />
+            </summary>
+            <div class="stack g-4 about-role-body">
+                <p class="t-small t-muted" style="margin:0">@_path.Description</p>
+
+                @if (_path.Reasons.Count > 0)
+                {
+                    <div class="stack g-2">
+                        <span class="t-overline t-subtle">Why it fits you</span>
+                        <ul class="stack g-1" style="margin:0;padding-left:18px">
+                            @foreach (var reason in _path.Reasons)
+                            {
+                                <li class="t-small">@reason</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (_path.Tasks.Count > 0)
+                {
+                    <div class="stack g-2">
+                        <span class="t-overline t-subtle">What the work involves</span>
+                        <ul class="stack g-1" style="margin:0;padding-left:18px">
+                            @foreach (var task in _path.Tasks)
+                            {
+                                <li class="t-small">@task</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (_path.Technologies.Count > 0)
+                {
+                    <div class="stack g-2">
+                        <span class="t-overline t-subtle">Technologies employers name</span>
+                        <div class="row g-2 wrap">
+                            @foreach (var tech in _path.Technologies)
+                            {
+                                <span class="chip">@tech</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (_path.Related.Count > 0)
+                {
+                    <div class="stack g-2">
+                        <span class="t-overline t-subtle">Related careers</span>
+                        <div class="row g-2 wrap">
+                            @foreach (var related in _path.Related)
+                            {
+                                <a class="chip" href="@($"/paths/{related.Id}")">@related.Title</a>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <a class="t-small" href="@($"/paths/{_path.Id}")">See the full role page</a>
+            </div>
+        </details>
+    </div>
+}
+
+@code {
+    private SkillCoverageDto? _coverage;
+    private CareerPathDto? _path;
+    private IReadOnlyList<SkillGapDto>? _gaps;
+    private bool _allGaps;
+
+    // How many missing skills show before "Show all"; the rest are a tap away.
+    private const int TopGaps = 5;
+
+    private string[] Ideas => _path is null ? [] :
+    [
+        $"What does a {_path.Title} do day to day?",
+        "Which skill should I learn first?",
+        $"How do I prepare for a {_path.Title} interview?",
+    ];
+
+    // /paths always browses; /career and /skills show the target once the student has chosen one.
+    private bool Choosing => !_coverage!.TargetChosen
+        || Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0].TrimEnd('/').Equals("paths", StringComparison.OrdinalIgnoreCase);
+
+    private List<SkillGapDto> Missing => (_gaps ?? []).Where(g => !g.Have).ToList();
+
+    private List<SkillGapDto> Covered => (_gaps ?? []).Where(g => g.Have).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // /career, /paths and /skills share this page, so moving between them keeps the same instance and never
+        // re-runs parameter hooks. Reload on every navigation instead.
+        Nav.LocationChanged += OnLocationChanged;
+        await LoadAsync();
+    }
+
+    private static readonly string[] OwnRoutes = ["career", "paths", "skills"];
+
+    private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        // Leaving for another page disposes this one; only switches between its own routes need a reload.
+        var route = Nav.ToBaseRelativePath(e.Location).Split('?', '#')[0].TrimEnd('/');
+        if (!OwnRoutes.Contains(route, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        await InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
+
+    private async Task LoadAsync()
+    {
+        _coverage = await Gaps.GetCoverageAsync();
+        if (Choosing)
+        {
+            return;
+        }
+
+        _path = await Careers.GetPathAsync(_coverage.RoleId);
+        _gaps = await Gaps.GetGapsAsync();
+    }
+}

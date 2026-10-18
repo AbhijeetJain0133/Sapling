@@ -1,0 +1,426 @@
+@page "/community/space"
+@namespace Sapling.Shared.Pages
+@implements IAsyncDisposable
+@inject IStudentSpaceService Space
+@inject IJSRuntime JS
+
+<PageTitle>Student space · Sapling</PageTitle>
+
+@* One shared chat per college, for students only. It refreshes on a short timer, which works the same on the
+   website and in the app without a live connection of its own. *@
+@* Wide screens show the member list beside the chat; elsewhere the header opens it. *@
+<div class="space-layout">
+<div class="chan-page chan-chat">
+    <header class="chan-head hue-community">
+        <a class="btn btn-ghost btn-icon btn-sm" href="/community" aria-label="Back to community">
+            <SapIcon Name="arrow-left" Size="18" />
+        </a>
+        @* The header opens the list of everyone in the space. *@
+        <button type="button" class="chan-head-main" @onclick="OpenMembersAsync" aria-label="See who is in the student space">
+            <span class="chan-head-pic"><SapIcon Name="users" Size="18" Stroke="2" /></span>
+            <span class="stack" style="gap:0;min-width:0">
+                <h1 class="chan-head-title">Student space</h1>
+                <span class="chan-head-sub">
+                    @if (_space is { Members: > 0 })
+                    {
+                        <text>@_space.Members @(_space.Members == 1 ? "student" : "students") from your college</text>
+                    }
+                </span>
+            </span>
+        </button>
+    </header>
+
+    @if (_space is { College: "" })
+    {
+        <SapEmptyState Title="Add your college to join its student space" Icon="users" Art="profile" Hue="community"
+                       Description="The student space is private to a college. Once your profile names yours, you can talk to its students here.">
+            <a class="btn btn-primary" href="/profile">Update profile</a>
+        </SapEmptyState>
+    }
+    else
+    {
+        <section class="card space">
+            <div class="space-log" @ref="_log" aria-live="polite">
+                @if (_space is null)
+                {
+                    <div class="skeleton" style="height:120px"></div>
+                }
+                else if (_space.Messages.Count == 0)
+                {
+                    <div class="space-empty">
+                        <span class="space-empty-title">Nobody has said anything yet</span>
+                        <span>Ask about a subject, a placement drive or a project. Everyone here is from your college.</span>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var message in _space.Messages)
+                    {
+                        var open = _menuFor == message.Id;
+                        <div class="@(message.IsMine ? "space-msg is-mine" : "space-msg")" @key="message.Id"
+                             @oncontextmenu="() => _menuFor = message.Id" @oncontextmenu:preventDefault>
+                            @if (!message.IsMine)
+                            {
+                                @if (AvatarOf(message.AuthorId) is { } photo)
+                                {
+                                    <img class="space-avatar" src="@photo" alt="" />
+                                }
+                                else
+                                {
+                                    <span class="space-avatar hue-@Hues.ForKey(message.AuthorName)">@Hues.Monogram(message.AuthorName)</span>
+                                }
+                            }
+                            <div class="space-bubble">
+                                @if (!message.IsMine)
+                                {
+                                    <span class="space-author">@message.AuthorName</span>
+                                }
+                                <span class="space-text">@message.Body</span>
+                                <span class="space-meta">
+                                    @CommunityDisplay.Ago(message.PostedAt)
+                                    @if (message.IsEdited)
+                                    {
+                                        <span>&middot; edited</span>
+                                    }
+                                    @if (message.IsSaved)
+                                    {
+                                        <SapIcon Name="bookmark" Size="11" Stroke="2" Class="space-saved" />
+                                    }
+                                </span>
+                            </div>
+                            <button type="button" class="space-more" aria-label="Message options" aria-expanded="@(open ? "true" : "false")"
+                                    @onclick="() => _menuFor = open ? null : message.Id">
+                                <SapIcon Name="more-horizontal" Size="16" Stroke="2.5" />
+                            </button>
+                        </div>
+                    }
+                }
+            </div>
+
+            @if (_space?.Messages.FirstOrDefault(m => m.Id == _menuFor) is { } chosen)
+            {
+                @* The options for one message, from its three dots or a right-click. Tapping outside closes it. *@
+                <div class="space-menu-scrim" @onclick="() => _menuFor = null"></div>
+                <div class="space-menu" role="menu" aria-label="Message options">
+                    <span class="space-menu-quote">@chosen.Body</span>
+                    <button type="button" role="menuitem" @onclick="() => SaveAsync(chosen)">
+                        <SapIcon Name="bookmark" Size="16" Stroke="2" />
+                        @(chosen.IsSaved ? "Remove from saved" : "Save")
+                    </button>
+                    @if (chosen.IsMine)
+                    {
+                        <button type="button" role="menuitem" @onclick="() => StartEdit(chosen)">
+                            <SapIcon Name="edit-2" Size="16" Stroke="2" />
+                            Edit
+                        </button>
+                        <button type="button" role="menuitem" class="is-danger" @onclick="() => DeleteAsync(chosen.Id)">
+                            <SapIcon Name="trash" Size="16" Stroke="2" />
+                            Delete
+                        </button>
+                    }
+                </div>
+            }
+
+            @if (_error is not null)
+            {
+                <span class="t-caption t-error" role="alert" style="padding:var(--sp-2) var(--sp-4) 0">@_error</span>
+            }
+
+            @if (_editing is not null)
+            {
+                <div class="space-editing">
+                    <SapIcon Name="edit-2" Size="14" Stroke="2" />
+                    <span class="grow">Editing your message</span>
+                    <button type="button" class="btn btn-ghost btn-sm" @onclick="CancelEdit">Cancel</button>
+                </div>
+            }
+
+            <form class="chat-form" @onsubmit="SendAsync">
+                <input class="chat-input" @ref="_input" @bind="_draft" @bind:event="oninput" maxlength="500" autocomplete="off"
+                       placeholder="Message your college's students" aria-label="Your message" />
+                <button type="submit" class="chat-send" aria-label="@(_editing is null ? "Send" : "Save changes")"
+                        disabled="@(_busy || string.IsNullOrWhiteSpace(_draft))">
+                    <SapIcon Name="@(_editing is null ? "send" : "check")" Size="16" Stroke="2" />
+                </button>
+            </form>
+        </section>
+    }
+</div>
+
+
+@if (_members.Count > 0)
+{
+    <aside class="card space-side">
+        <div class="row between g-2">
+            <span class="space-side-title">In this space <span class="t-subtle" style="font-weight:500">&middot; @_members.Count</span></span>
+            @InfoButton
+        </div>
+        @MemberList
+    </aside>
+}
+</div>
+
+@if (_showMembers)
+{
+    <SapModal Title="@($"In this space · {_members.Count}")" OnClose="() => _showMembers = false">
+        <div class="stack g-3">
+            <div class="row between g-2">
+                <span class="t-small t-muted">Everyone from your college on Sapling</span>
+                @InfoButton
+            </div>
+            @MemberList
+        </div>
+    </SapModal>
+}
+
+@code {
+    private bool _showInfo;
+
+    /// <summary>The "i" beside the member list, and the note it opens about who can read the space.</summary>
+    private RenderFragment InfoButton => __builder =>
+    {
+        <button type="button" class="space-info-btn" aria-label="Who can see this space" aria-expanded="@(_showInfo ? "true" : "false")"
+                title="Who can see this space" @onclick="() => _showInfo = !_showInfo">
+            <SapIcon Name="info" Size="16" Stroke="2" />
+        </button>
+    };
+
+    private RenderFragment MemberList => __builder =>
+    {
+        if (_showInfo)
+        {
+            <p class="space-info">
+                This space belongs to the students. Messages here are seen only by students of your own college.
+                Your institute and its staff have no way to read them.
+            </p>
+        }
+        <div class="stack member-list">
+            @foreach (var member in _members)
+            {
+                <div class="member-row" @key="member.Id">
+                    @if (!string.IsNullOrEmpty(member.AvatarUrl))
+                    {
+                        <img class="space-avatar member-pic" src="@member.AvatarUrl" alt="" />
+                    }
+                    else
+                    {
+                        <span class="space-avatar member-pic hue-@Hues.ForKey(member.Name)">@Hues.Monogram(member.Name)</span>
+                    }
+                    <span class="grow member-name">
+                        @member.Name
+                        @if (member.IsMe)
+                        {
+                            <span class="t-subtle" style="font-weight:500"> (you)</span>
+                        }
+                    </span>
+                    @if (member.GraduationYear > 0)
+                    {
+                        <span class="t-caption t-subtle">Class of @member.GraduationYear</span>
+                    }
+                </div>
+            }
+        </div>
+    };
+
+    private static readonly TimeSpan Refresh = TimeSpan.FromSeconds(5);
+
+    private StudentSpaceDto? _space;
+    private IReadOnlyList<StudentSpaceMemberDto> _members = [];
+    private Dictionary<int, string?> _photos = [];
+    private ElementReference _log;
+    private ElementReference _input;
+    private string _draft = "";
+    private string? _error;
+    private int? _menuFor;
+    private int? _editing;
+    private bool _showMembers;
+    private bool _busy;
+    private bool _scroll;
+    private bool _focus;
+    private int _lastId;
+    private CancellationTokenSource? _stop;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        await LoadMembersAsync();
+        _stop = new CancellationTokenSource();
+        _ = PollAsync(_stop.Token);
+    }
+
+    private async Task PollAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(Refresh);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                // Don't redraw under an open menu or a half-finished action.
+                if (_busy || _menuFor is not null)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    await LoadAsync();
+
+                    // Someone new has spoken: fetch the member list again for their photo.
+                    if (_space!.Messages.Any(m => !m.IsMine && !_photos.ContainsKey(m.AuthorId)))
+                    {
+                        await LoadMembersAsync();
+                    }
+
+                    await InvokeAsync(StateHasChanged);
+                }
+                catch (Exception e) when (e is not OperationCanceledException)
+                {
+                    // A missed refresh is fine; the next tick tries again.
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task LoadAsync() => Show(await Space.GetAsync());
+
+    /// <summary>Photos travel with the member list, not with every message, so they are fetched once.</summary>
+    private async Task LoadMembersAsync()
+    {
+        _members = await Space.GetMembersAsync();
+        _photos = _members.ToDictionary(m => m.Id, m => m.AvatarUrl);
+    }
+
+    private string? AvatarOf(int authorId) =>
+        _photos.TryGetValue(authorId, out var url) && !string.IsNullOrEmpty(url) ? url : null;
+
+    private void Show(StudentSpaceDto space)
+    {
+        _space = space;
+        var last = space.Messages.Count > 0 ? space.Messages[^1].Id : 0;
+
+        // Only jump to the end when something new arrived, so reading older messages is not interrupted.
+        _scroll = last != _lastId;
+        _lastId = last;
+    }
+
+    private async Task OpenMembersAsync()
+    {
+        _showMembers = true;
+        await LoadMembersAsync();
+    }
+
+    private void StartEdit(StudentMessageDto message)
+    {
+        _menuFor = null;
+        _editing = message.Id;
+        _draft = message.Body;
+        _focus = true;
+    }
+
+    private void CancelEdit()
+    {
+        _editing = null;
+        _draft = "";
+    }
+
+    private Task SendAsync()
+    {
+        var text = _draft.Trim();
+        if (text.Length == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var request = new PostStudentMessageRequest(text);
+        var editing = _editing;
+        return RunAsync(
+            () => editing is { } id ? Space.EditAsync(id, request) : Space.PostAsync(request),
+            "That didn't send. Wait a moment and try again.",
+            () =>
+            {
+                _draft = "";
+                _editing = null;
+            });
+    }
+
+    private Task SaveAsync(StudentMessageDto message) =>
+        RunAsync(() => Space.SetSavedAsync(message.Id, !message.IsSaved), "That message couldn't be saved.");
+
+    private Task DeleteAsync(int id)
+    {
+        if (_editing == id)
+        {
+            CancelEdit();
+        }
+
+        return RunAsync(() => Space.DeleteAsync(id), "That message couldn't be deleted.");
+    }
+
+    private async Task RunAsync(Func<Task<StudentSpaceDto>> action, string failure, Action? then = null)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        _menuFor = null;
+        _error = null;
+        try
+        {
+            var keep = _lastId;
+            Show(await action());
+
+            // Saving or editing changes no order, so the view stays where the student was reading.
+            _scroll = _lastId != keep;
+            then?.Invoke();
+        }
+        catch (ArgumentException e)
+        {
+            // Too long, too fast: the server's wording is written for the student.
+            _error = e.Message;
+        }
+        catch (Exception e) when (e is InvalidOperationException or HttpRequestException)
+        {
+            _error = failure;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            if (_scroll)
+            {
+                _scroll = false;
+                await JS.InvokeVoidAsync("sapling.chat.toEnd", _log);
+            }
+
+            if (_focus)
+            {
+                _focus = false;
+                await _input.FocusAsync();
+            }
+        }
+        catch (Exception e) when (e is JSException or JSDisconnectedException or InvalidOperationException)
+        {
+            // Scrolling and focus are conveniences.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_stop is not null)
+        {
+            await _stop.CancelAsync();
+            _stop.Dispose();
+        }
+    }
+}

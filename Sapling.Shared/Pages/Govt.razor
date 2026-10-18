@@ -1,0 +1,186 @@
+@page "/exams"
+@page "/govt"
+@namespace Sapling.Shared.Pages
+@inject IGovtService GovtService
+
+<PageTitle>Exams · Sapling</PageTitle>
+<RecordVisit Feature="@FeatureCatalog.GovtTrack" />
+
+<div class="stack g-5">
+    <div class="g-card g-card-sm hue-govt" style="min-height:120px">
+        <SapArt Name="govt" Class="g-card-art" />
+        <div class="g-card-body stack g-1">
+            <h1 style="font-size:28px;line-height:34px">Exams</h1>
+            <span class="t-small">
+                Every exam coming up, on one calendar, with a link to the official site.
+            </span>
+        </div>
+    </div>
+
+    @if (_exams is null)
+    {
+        <div class="exams-layout">
+            <div class="stack g-3">
+                @for (var i = 0; i < 4; i++)
+                {
+                    <div class="card"><div class="skeleton" style="height:72px"></div></div>
+                }
+            </div>
+            <div class="card"><div class="skeleton" style="height:360px"></div></div>
+        </div>
+    }
+    else
+    {
+        <div class="exams-layout">
+            <div class="stack g-5 exams-list">
+                <div class="stack g-3">
+                    <span class="section-title hue-govt">Coming up <span class="t-subtle" style="font-weight:500">&middot; @Dated.Count</span></span>
+                    @foreach (var exam in Dated)
+                    {
+                        @ExamRow(exam)
+                    }
+                </div>
+
+                @if (Awaited.Count > 0)
+                {
+                    <div class="stack g-3">
+                        <span class="section-title hue-govt">Dates awaited</span>
+                        <span class="t-small t-subtle" style="margin-top:calc(-1 * var(--sp-2))">
+                            Not announced yet. The official site is where the notification will appear first.
+                        </span>
+                        @foreach (var exam in Awaited)
+                        {
+                            @ExamRow(exam)
+                        }
+                    </div>
+                }
+            </div>
+
+            <aside class="exams-cal-col">
+                <ExamCalendar Exams="_exams" HueMap="_hues" @bind-Month="_month" SelectedId="_selectedId" OnSelect="SelectFromCalendar" />
+            </aside>
+        </div>
+    }
+</div>
+
+@code {
+    private static DateOnly Today => DateOnly.FromDateTime(DateTime.Today);
+
+    private IReadOnlyList<GovtExamDto>? _exams;
+    private Dictionary<int, string> _hues = [];
+    private DateOnly _month = new(Today.Year, Today.Month, 1);
+    private int? _selectedId;
+
+    private List<GovtExamDto> Dated => _exams!.Where(e => e.ExamOn is not null).ToList();
+
+    private List<GovtExamDto> Awaited => _exams!.Where(e => e.ExamOn is null).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _exams = await GovtService.GetExamsAsync();
+
+        // Colours by position rather than by name hash, so neighbouring exams on the calendar never share one.
+        _hues = _exams.Select((e, i) => (e.Id, Hue: Hues.All[i % Hues.All.Count])).ToDictionary(x => x.Id, x => x.Hue);
+    }
+
+    private RenderFragment ExamRow(GovtExamDto exam) => __builder =>
+    {
+        var open = exam.Id == _selectedId;
+        <article class="@($"card exam-row hue-{_hues[exam.Id]}{(open ? " is-open" : "")}")">
+            <button type="button" class="exam-row-main" aria-expanded="@(open ? "true" : "false")" @onclick="() => Toggle(exam)">
+                <span class="mono-tile exam-mono">@Short(exam.Name)</span>
+                <span class="stack grow" style="gap:4px;min-width:0">
+                    <span class="exam-name">@exam.Name</span>
+                    <span class="row g-1 wrap t-small t-muted">
+                        <SapIcon Name="calendar" Size="14" />
+                        @When(exam)
+                        @if (exam.DatesTentative)
+                        {
+                            <span class="t-subtle">(Tentative)</span>
+                        }
+                    </span>
+                </span>
+                <span class="stack g-1 exam-row-side">
+                    @if (Countdown(exam) is { } countdown)
+                    {
+                        <span class="badge badge-hue">@countdown</span>
+                    }
+                    <SapIcon Name="@(open ? "chevron-up" : "chevron-down")" Size="18" Class="t-subtle" />
+                </span>
+            </button>
+
+            <div class="row g-3 wrap exam-row-foot">
+                <a class="exam-link" href="@exam.OfficialUrl" target="_blank" rel="noopener noreferrer">
+                    Official site <SapIcon Name="external-link" Size="13" />
+                </a>
+                <span class="t-caption t-subtle">@exam.Authority</span>
+            </div>
+
+            @if (open)
+            {
+                <div class="stack g-3 exam-row-detail">
+                    <span class="t-small t-muted">@exam.Summary</span>
+                    @if (exam.NotificationOn is { } notified)
+                    {
+                        <span class="row g-1 t-small">
+                            <SapIcon Name="bell" Size="14" />
+                            Notification @(notified <= Today ? "released" : "due") @notified.ToString("d MMM yyyy")
+                        </span>
+                    }
+                    <div class="row g-2 wrap">
+                        @foreach (var area in exam.SyllabusAreas)
+                        {
+                            <span class="chip chip-hue" style="padding:3px 10px;font-size:12px">@area</span>
+                        }
+                    </div>
+
+                </div>
+            }
+        </article>
+    };
+
+    private void Toggle(GovtExamDto exam)
+    {
+        _selectedId = _selectedId == exam.Id ? null : exam.Id;
+        if (_selectedId is not null && exam.ExamOn is { } start)
+        {
+            _month = new DateOnly(start.Year, start.Month, 1);
+        }
+    }
+
+    private void SelectFromCalendar(int id) => _selectedId = id;
+
+    /// <summary>The exam's short name ("SSC", "GATE", "MPPSC") for the tile.</summary>
+    private static string Short(string name)
+    {
+        var first = name.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
+        return first.Length <= 5 ? first : Hues.Monogram(name);
+    }
+
+    private static string When(GovtExamDto e) => e.ExamOn switch
+    {
+        null => "Dates awaited",
+        { } start when e.ExamEndsOn is { } end && end != start => start.Year == end.Year
+            ? $"{start:d MMM} – {end:d MMM yyyy}"
+            : $"{start:d MMM yyyy} – {end:d MMM yyyy}",
+        { } start => start.ToString("d MMM yyyy"),
+    };
+
+    private static string? Countdown(GovtExamDto e)
+    {
+        if (e.ExamOn is not { } start)
+        {
+            return null;
+        }
+
+        var days = start.DayNumber - Today.DayNumber;
+        return days switch
+        {
+            < 0 => "Ongoing",
+            0 => "Today",
+            1 => "Tomorrow",
+            < 60 => $"In {days} days",
+            _ => $"In {days / 30} months",
+        };
+    }
+}

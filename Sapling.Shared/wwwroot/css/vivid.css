@@ -1,0 +1,748 @@
+/* Sapling vivid: colour, depth and life. Everything here is scoped to a hue via the --g-* slots
+   (see tokens.css), which .hue-* classes set and which default to the primary blue. */
+
+/* ---------- Hue classes ---------- */
+
+.hue-career        { --g-a: var(--hue-career-a);        --g-b: var(--hue-career-b);        --g-soft: var(--hue-career-soft);        --g-text: var(--hue-career-text);        --g-glow: var(--hue-career-glow); }
+.hue-roadmap       { --g-a: var(--hue-roadmap-a);       --g-b: var(--hue-roadmap-b);       --g-soft: var(--hue-roadmap-soft);       --g-text: var(--hue-roadmap-text);       --g-glow: var(--hue-roadmap-glow); }
+.hue-opportunities { --g-a: var(--hue-opportunities-a); --g-b: var(--hue-opportunities-b); --g-soft: var(--hue-opportunities-soft); --g-text: var(--hue-opportunities-text); --g-glow: var(--hue-opportunities-glow); }
+.hue-resume        { --g-a: var(--hue-resume-a);        --g-b: var(--hue-resume-b);        --g-soft: var(--hue-resume-soft);        --g-text: var(--hue-resume-text);        --g-glow: var(--hue-resume-glow); }
+.hue-interview     { --g-a: var(--hue-interview-a);     --g-b: var(--hue-interview-b);     --g-soft: var(--hue-interview-soft);     --g-text: var(--hue-interview-text);     --g-glow: var(--hue-interview-glow); }
+.hue-govt          { --g-a: var(--hue-govt-a);          --g-b: var(--hue-govt-b);          --g-soft: var(--hue-govt-soft);          --g-text: var(--hue-govt-text);          --g-glow: var(--hue-govt-glow); }
+.hue-community     { --g-a: var(--hue-community-a);     --g-b: var(--hue-community-b);     --g-soft: var(--hue-community-soft);     --g-text: var(--hue-community-text);     --g-glow: var(--hue-community-glow); }
+.hue-profile       { --g-a: var(--hue-profile-a);       --g-b: var(--hue-profile-b);       --g-soft: var(--hue-profile-soft);       --g-text: var(--hue-profile-text);       --g-glow: var(--hue-profile-glow); }
+.hue-brand         { --g-a: var(--hue-brand-a);         --g-b: var(--hue-brand-b);         --g-soft: var(--hue-brand-soft);         --g-text: var(--hue-brand-text);         --g-glow: var(--hue-brand-glow); }
+.hue-green         { --g-a: var(--green);  --g-b: var(--brand-leaf); --g-soft: var(--green-soft); --g-text: var(--green-text); --g-glow: color-mix(in srgb, var(--green) 45%, transparent); }
+.hue-coral         { --g-a: var(--coral-hover); --g-b: var(--coral); --g-soft: var(--coral-soft); --g-text: var(--coral-text); --g-glow: color-mix(in srgb, var(--coral) 45%, transparent); }
+
+/* ---------- Gradient card ---------- */
+
+.g-card {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: var(--sp-2);
+    min-height: 200px;
+    padding: var(--sp-5) var(--sp-6);
+    border-radius: var(--r-xl);
+    border: 0;
+    color: #fff;
+    background: linear-gradient(135deg, var(--g-a) 0%, var(--g-b) 100%);
+    box-shadow: var(--shadow-md), 0 16px 36px -18px var(--g-glow);
+    transition: transform var(--dur) ease, box-shadow var(--dur) ease;
+}
+
+/* Highlights on the bright corner and a scrim behind the text on the left */
+.g-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background:
+        radial-gradient(70% 90% at 100% 0%, rgba(255, 255, 255, var(--g-shine)), transparent 62%),
+        radial-gradient(45% 60% at 80% 115%, rgba(255, 255, 255, calc(var(--g-shine) * .6)), transparent 60%),
+        linear-gradient(90deg, rgba(8, 16, 32, var(--g-scrim)) 0%, rgba(8, 16, 32, 0) 62%);
+}
+
+/* A big soft ring: the layered translucent shape */
+.g-card::after {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    width: 280px;
+    height: 280px;
+    right: -90px;
+    top: -120px;
+    border-radius: 50%;
+    border: 36px solid rgba(255, 255, 255, .09);
+}
+
+.g-card-body {
+    position: relative;
+    max-width: 58%;
+}
+
+.g-card h1,
+.g-card h2,
+.g-card h3,
+.g-card h4 {
+    color: #fff;
+}
+
+.g-card .t-muted,
+.g-card .t-subtle,
+.g-card .t-small {
+    color: rgba(255, 255, 255, .86);
+}
+
+.g-card .t-overline,
+.g-card .t-caption {
+    color: rgba(255, 255, 255, .74);
+}
+
+.g-card-art {
+    position: absolute;
+    z-index: -1;
+    right: var(--sp-4);
+    top: var(--sp-3);
+    bottom: var(--sp-3);
+    width: min(40%, 300px);
+    pointer-events: none;
+}
+
+.g-card-art svg,
+.sap-art svg {
+    width: 100%;
+    height: 100%;
+}
+
+a.g-card:hover {
+    text-decoration: none;
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg), 0 22px 44px -18px var(--g-glow);
+}
+
+a.g-card:active {
+    transform: translateY(0);
+}
+
+.g-card-sm {
+    min-height: 140px;
+    padding: var(--sp-4) var(--sp-5);
+    border-radius: var(--r-lg);
+}
+
+/* Things placed on a gradient */
+.g-card .badge,
+.badge-onlight {
+    background: rgba(255, 255, 255, .18);
+    color: #fff;
+}
+
+.g-card .bar {
+    background: rgba(255, 255, 255, .22);
+}
+
+.g-card .bar > i {
+    background: #fff;
+}
+
+.g-card .card-inset {
+    background: rgba(255, 255, 255, .14);
+    border-color: transparent;
+    color: #fff;
+}
+
+.btn-glass,
+.g-card .btn-secondary,
+.g-card .btn-ghost {
+    background: rgba(255, 255, 255, .16);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, .32);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.btn-glass:hover,
+.g-card .btn-secondary:hover,
+.g-card .btn-ghost:hover {
+    background: rgba(255, 255, 255, .26);
+    color: #fff;
+}
+
+.btn-onlight,
+.g-card .btn-primary {
+    background: #fff;
+    color: var(--g-text);
+    border: 0;
+    box-shadow: 0 6px 16px -8px rgba(0, 0, 0, .35);
+}
+
+.btn-onlight:hover,
+.g-card .btn-primary:hover {
+    background: #fff;
+    color: var(--g-a);
+    filter: brightness(1.02);
+}
+
+/* Light tint variant: dark ink, for content-heavy cards */
+.g-card.g-soft {
+    color: var(--ink);
+    background: linear-gradient(135deg, var(--g-soft), var(--surface) 75%);
+    border: 1px solid color-mix(in srgb, var(--g-a) 22%, var(--line));
+    box-shadow: var(--shadow-sm);
+}
+
+.g-card.g-soft::before {
+    background: radial-gradient(60% 80% at 100% 0%, color-mix(in srgb, var(--g-a) 16%, transparent), transparent 60%);
+}
+
+.g-card.g-soft::after {
+    border-color: color-mix(in srgb, var(--g-a) 10%, transparent);
+}
+
+.g-card.g-soft h2,
+.g-card.g-soft h3,
+.g-card.g-soft h4 {
+    color: var(--ink);
+}
+
+.g-card.g-soft .t-muted {
+    color: var(--muted);
+}
+
+@media (max-width: 639px) {
+    .g-card {
+        min-height: 168px;
+        padding: var(--sp-4);
+    }
+
+    .g-card-body {
+        max-width: 66%;
+    }
+
+    .g-card-art {
+        opacity: .8;
+        width: 34%;
+    }
+}
+
+/* ---------- Category tile ---------- */
+
+.tile {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 4px;
+    min-height: 156px;
+    padding: var(--sp-4);
+    border-radius: var(--r-lg);
+    background: linear-gradient(165deg, var(--g-soft) 0%, var(--surface) 68%);
+    border: 1px solid color-mix(in srgb, var(--g-a) 16%, var(--line));
+    color: var(--ink);
+    box-shadow: var(--shadow-sm);
+    transition: transform var(--dur) ease, box-shadow var(--dur) ease, border-color var(--dur) ease;
+}
+
+/* Gradient blob peeking from the corner */
+.tile::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    right: -34px;
+    top: -34px;
+    width: 128px;
+    height: 128px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--g-a), var(--g-b));
+    opacity: .18;
+    transition: opacity var(--dur) ease;
+}
+
+/* Dotted grid texture in the other corner */
+.tile::after {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    left: 10px;
+    bottom: -10px;
+    width: 90px;
+    height: 50px;
+    background-image: radial-gradient(color-mix(in srgb, var(--g-a) 35%, transparent) 1.2px, transparent 1.3px);
+    background-size: 10px 10px;
+    opacity: .6;
+}
+
+.tile-art {
+    position: absolute;
+    z-index: -1;
+    right: 10px;
+    top: 10px;
+    width: 88px;
+    height: 88px;
+    pointer-events: none;
+}
+
+.tile h4 {
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+}
+
+.tile-kicker {
+    font: 600 11px/16px var(--font-body);
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--g-text);
+}
+
+a.tile:hover {
+    text-decoration: none;
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md), 0 12px 28px -16px var(--g-glow);
+    border-color: color-mix(in srgb, var(--g-a) 40%, var(--line));
+}
+
+a.tile:hover::before {
+    opacity: .26;
+}
+
+.tile-solid {
+    color: #fff;
+    background: linear-gradient(135deg, var(--g-a), var(--g-b));
+    border: 0;
+}
+
+.tile-solid h4,
+.tile-solid .tile-kicker {
+    color: #fff;
+}
+
+.tile-solid .t-muted,
+.tile-solid .t-small {
+    color: rgba(255, 255, 255, .86);
+}
+
+/* A tile used as a plain content container (SapCard Class="tile hue-*") */
+.tile.card {
+    justify-content: flex-start;
+    min-height: 0;
+    padding: var(--sp-5);
+}
+
+.tile .card-inset {
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
+    border: 1px solid color-mix(in srgb, var(--g-a) 12%, var(--line));
+}
+
+/* ---------- Small vivid pieces ---------- */
+
+.stat-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--sp-4);
+    border-radius: var(--r-lg);
+    background: var(--g-soft);
+    border: 1px solid color-mix(in srgb, var(--g-a) 14%, var(--line));
+}
+
+.stat-tile .t-num {
+    font-size: 30px;
+    line-height: 34px;
+}
+
+.t-gradient {
+    background: linear-gradient(90deg, var(--g-a), var(--g-b));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+}
+
+.t-grad-brand {
+    background: linear-gradient(90deg, var(--green), var(--coral));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+}
+
+.glass {
+    background: color-mix(in srgb, var(--surface) 68%, transparent);
+    border: 1px solid color-mix(in srgb, var(--surface) 40%, var(--line));
+    backdrop-filter: blur(14px) saturate(1.3);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+}
+
+.section-title {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 17px;
+    line-height: 22px;
+    color: var(--ink);
+}
+
+.section-title::before {
+    content: '';
+    width: 6px;
+    height: 18px;
+    border-radius: 3px;
+    background: linear-gradient(180deg, var(--g-a), var(--g-b));
+    flex: none;
+}
+
+.page-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--g-text);
+    font: 600 12px/16px var(--font-body);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.icon-tile-solid {
+    background: linear-gradient(135deg, var(--g-a), var(--g-b));
+    color: #fff;
+    box-shadow: 0 6px 14px -8px var(--g-glow);
+}
+
+.icon-tile-lg {
+    width: 56px;
+    height: 56px;
+    border-radius: var(--r-lg);
+}
+
+.mono-tile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 48px;
+    height: 48px;
+    border-radius: var(--r-md);
+    background: linear-gradient(135deg, var(--g-a), var(--g-b));
+    color: #fff;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 16px;
+    letter-spacing: .02em;
+    box-shadow: 0 6px 14px -8px var(--g-glow);
+}
+
+.badge-green { background: var(--green-soft); color: var(--green-text); }
+.badge-coral { background: var(--coral-soft); color: var(--coral-text); }
+.badge-hue { background: var(--g-soft); color: var(--g-text); }
+.badge-solid { background: var(--g-a); color: #fff; }
+
+.btn-hue {
+    background: linear-gradient(135deg, var(--g-a), var(--g-b));
+    color: #fff;
+    box-shadow: 0 8px 18px -10px var(--g-glow);
+}
+
+.btn-hue:hover {
+    color: #fff;
+    filter: brightness(1.06);
+}
+
+.bar-hue > i { background: linear-gradient(90deg, var(--g-a), var(--g-b)); }
+.bar-green > i { background: linear-gradient(90deg, var(--green), var(--brand-leaf)); }
+.bar-coral > i { background: linear-gradient(90deg, var(--coral-hover), var(--coral)); }
+
+.chip-hue {
+    background: var(--g-soft);
+    border-color: transparent;
+    color: var(--g-text);
+}
+
+.avatar-ring {
+    box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--green);
+}
+
+.sap-art {
+    display: inline-block;
+    line-height: 0;
+}
+
+/* ---------- Restyled base components (later rules win over base.css) ---------- */
+
+.card {
+    box-shadow: var(--shadow-sm);
+    transition: transform var(--dur) ease, box-shadow var(--dur) ease, border-color var(--dur) ease;
+}
+
+a.card:hover,
+button.card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: color-mix(in srgb, var(--g-a) 40%, var(--line));
+}
+
+a.card:active,
+button.card:active {
+    transform: translateY(0);
+}
+
+.card-inset,
+.card-quiet {
+    box-shadow: none;
+}
+
+/* base.css makes link cards block-level; a card that is also a row must stay flex */
+a.card.row,
+button.card.row,
+a.card.row-top {
+    display: flex;
+}
+
+.card-accent {
+    border-top: 0;
+    background-image: linear-gradient(90deg, var(--g-a), var(--g-b));
+    background-size: 100% 4px;
+    background-repeat: no-repeat;
+}
+
+.icon-tile {
+    background: var(--g-soft);
+    color: var(--g-text);
+}
+
+.btn-primary {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 88%, #fff), var(--primary));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), var(--shadow-sm);
+}
+
+.btn-primary:hover {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--primary-hover) 90%, #fff), var(--primary-hover));
+}
+
+.btn-primary:active,
+.btn-accent:active,
+.btn-hue:active {
+    transform: translateY(1px);
+    box-shadow: none;
+}
+
+.btn-accent {
+    background: var(--coral);
+    color: var(--coral-on);
+    box-shadow: 0 8px 18px -10px color-mix(in srgb, var(--coral) 55%, transparent);
+}
+
+.btn-accent:hover {
+    background: var(--coral-hover);
+    color: var(--coral-on);
+}
+
+.avatar {
+    background: linear-gradient(135deg, var(--g-a), var(--g-b));
+    color: #fff;
+}
+
+.skeleton {
+    background: color-mix(in srgb, var(--surface2) 80%, var(--g-soft));
+}
+
+.skeleton::after {
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--g-a) 10%, transparent), transparent);
+}
+
+.segmented {
+    border-radius: var(--r-pill);
+    padding: 4px;
+}
+
+.segmented > button {
+    border-radius: var(--r-pill);
+}
+
+.segmented > button.active,
+.segmented > button[aria-selected='true'],
+.segmented > button[aria-selected='True'] {
+    background: var(--surface);
+    color: var(--g-text);
+    box-shadow: var(--shadow-sm);
+    border-color: transparent;
+}
+
+.chip-selected {
+    background: var(--g-soft);
+    border-color: var(--g-a);
+    color: var(--g-text);
+}
+
+.chip-progress {
+    background: var(--coral-soft);
+    border-color: var(--coral);
+    color: var(--coral-text);
+}
+
+.bar {
+    background: color-mix(in srgb, var(--g-a) 12%, var(--surface2));
+}
+
+.bar > i {
+    background: linear-gradient(90deg, var(--g-a), var(--g-b));
+}
+
+/* ---------- Shell ---------- */
+
+.shell-main {
+    position: relative;
+}
+
+/* Faint two-hue wash behind every page. A fixed pseudo-element rather than background-attachment,
+   which is unreliable in the MAUI WebView. */
+.shell-main::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: var(--grad-page);
+    pointer-events: none;
+}
+
+.sidebar-brand {
+    background: linear-gradient(180deg, var(--hue-brand-soft), transparent);
+    border-radius: var(--r-md);
+}
+
+.nav-item.active {
+    background: var(--g-soft);
+    color: var(--g-text);
+    box-shadow: inset 3px 0 0 var(--g-a);
+}
+
+.nav-item.active > svg {
+    color: var(--g-a);
+}
+
+.tab {
+    position: relative;
+}
+
+.tab.active {
+    color: var(--g-text);
+}
+
+.tab.active > svg {
+    color: var(--g-a);
+}
+
+.tab.active::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    width: 18px;
+    height: 3px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--g-a), var(--g-b));
+}
+
+.recent-card {
+    background: var(--g-soft);
+    border-color: color-mix(in srgb, var(--g-a) 30%, transparent);
+    color: var(--g-text);
+}
+
+.recent-card:hover {
+    border-color: var(--g-a);
+}
+
+.carousel-arrow {
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    color: var(--ink);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-color: transparent;
+}
+
+.inst-tile {
+    background: linear-gradient(135deg, var(--g-a), var(--g-b));
+    color: #fff;
+}
+
+/* Legacy tone names kept for callers not yet migrated */
+.inst-primary { --g-a: var(--hue-profile-a); --g-b: var(--hue-profile-b); }
+.inst-success { --g-a: var(--hue-roadmap-a); --g-b: var(--hue-roadmap-b); }
+.inst-info    { --g-a: var(--hue-interview-a); --g-b: var(--hue-interview-b); }
+.inst-warn    { --g-a: var(--hue-govt-a); --g-b: var(--hue-govt-b); }
+
+/* ---------- Focus, motion, dark ---------- */
+
+.g-card:focus-visible,
+.tile:focus-visible,
+.tile-solid:focus-visible,
+.btn-hue:focus-visible {
+    outline: 3px solid #fff;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 5px var(--g-a);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .g-card,
+    .tile,
+    a.card,
+    button.card {
+        transform: none !important;
+    }
+}
+
+html[data-sapling-mode='dark'] .tile {
+    background: linear-gradient(165deg, var(--g-soft), var(--surface) 60%);
+    border-color: color-mix(in srgb, var(--g-a) 30%, var(--line));
+}
+
+html[data-sapling-mode='dark'] .tile::before {
+    opacity: .22;
+}
+
+html[data-sapling-mode='dark'] .g-card::after {
+    border-color: rgba(255, 255, 255, .06);
+}
+
+html[data-sapling-mode='dark'] .btn-primary {
+    background: linear-gradient(180deg, var(--primary-hover), var(--primary));
+    box-shadow: var(--shadow-sm);
+}
+
+html[data-sapling-mode='dark'] .glass {
+    background: color-mix(in srgb, var(--surface) 55%, transparent);
+}
+
+/* ---------- Nav icons: each feature keeps its colour, the active one fills ---------- */
+
+.nav-item > svg:first-child {
+    box-sizing: content-box;
+    padding: 6px;
+    border-radius: 10px;
+    background: var(--g-soft);
+    color: var(--g-a);
+    transition: background var(--dur-fast) ease, color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
+}
+
+.nav-item.active > svg:first-child {
+    background: linear-gradient(135deg, var(--g-a), var(--g-b));
+    color: #fff;
+    box-shadow: 0 6px 12px -6px var(--g-glow);
+}
+
+.nav-item {
+    padding-top: 6px;
+    padding-bottom: 6px;
+}
+
+.tab > svg {
+    box-sizing: content-box;
+    padding: 4px 16px;
+    border-radius: 999px;
+    color: color-mix(in srgb, var(--g-a) 80%, var(--subtle));
+    transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+
+.tab.active > svg {
+    background: linear-gradient(135deg, var(--g-a), var(--g-b));
+    color: #fff;
+    box-shadow: 0 6px 14px -8px var(--g-glow);
+}
+
+.tab.active::after {
+    display: none;
+}
+
+/* App tab bar: icons only, so they get a larger pill. */
+.tab-icon-only > svg {
+    padding: 7px 20px;
+}

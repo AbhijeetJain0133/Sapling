@@ -1,0 +1,12 @@
+@namespace Sapling.Shared.Components
+
+<span class="inst-tile hue-@Hues.ForId(InstitutionId)"
+      style="width:@(Size)px;height:@(Size)px" aria-hidden="true">
+    <SapIcon Name="graduation-cap" Size="@(Size / 2)" />
+</span>
+
+@code {
+    [Parameter, EditorRequired] public int InstitutionId { get; set; }
+
+    [Parameter] public int Size { get; set; } = 44;
+}

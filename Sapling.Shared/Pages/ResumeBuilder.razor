@@ -1,0 +1,346 @@
+@page "/resume/new"
+@namespace Sapling.Shared.Pages
+@inject IResumeService Resumes
+@inject IFormFactor FormFactor
+@inject NavigationManager Nav
+
+<PageTitle>Build a resume · Sapling</PageTitle>
+<RecordVisit Feature="@FeatureCatalog.Resume" />
+
+@if (FormFactor.Platform != "Web")
+{
+    <ResumeWebOnly><a class="btn btn-secondary" href="/resume">Back to resumes</a></ResumeWebOnly>
+}
+else if (_form is null)
+{
+    <div class="card"><div class="skeleton" style="height:320px"></div></div>
+}
+else
+{
+    <div class="stack g-5" style="max-width:820px">
+        <div class="stack g-1">
+            <a class="t-small row g-1" href="/resume"><SapIcon Name="arrow-left" Size="14" /> Resumes</a>
+            <h1 style="font-size:26px;line-height:32px">@(_describing ? "Describe yourself" : "Build your resume")</h1>
+            <span class="t-muted">
+                @(_describing
+                    ? "Write about yourself the way you'd tell a friend. The AI sorts it into resume sections, then you check every step."
+                    : "We've filled in what your Sapling profile already knows. Add the rest; empty sections are left out of the resume.")
+            </span>
+        </div>
+
+        @if (_describing)
+        {
+            <div class="card stack g-4">
+                <div class="field">
+                    <label for="rs-describe">About you</label>
+                    <textarea id="rs-describe" class="textarea" style="min-height:220px" maxlength="4000"
+                              @bind="_description" @bind:event="oninput" disabled="@_busy"
+                              placeholder="I'm a final-year B.Tech CSE student at SGSITS Indore. I did a two-month internship at … where I built … I made an attendance app in Flutter with Firebase that … I know Java, Python and SQL. I won second prize at …"></textarea>
+                    <span class="field-hint">@_description.Length / 4000 · Mention your course, projects, internships, tools you use and anything you've won. Only what you write here is used.</span>
+                </div>
+                @if (_error is not null)
+                {
+                    <span class="field-error">@_error</span>
+                }
+                <div class="row between g-3 wrap">
+                    <button type="button" class="btn btn-ghost" @onclick="() => _describing = false" disabled="@_busy">Skip, fill in the form</button>
+                    <button type="button" class="btn btn-primary" @onclick="DraftAsync" disabled="@(_busy || _description.Trim().Length < 20)">
+                        @if (_busy)
+                        {
+                            <span class="rs-spinner sm" aria-hidden="true"></span>
+                            <span>Drafting…</span>
+                        }
+                        else
+                        {
+                            <SapIcon Name="sparkles" Size="15" />
+                            <span>Draft my resume</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <ResumeSteps Steps="Steps" Current="_step" OnSelect="i => _step = i" />
+
+            @if (_drafted)
+            {
+                <div class="row-top g-2 t-small" style="color:var(--info-text)">
+                    <SapIcon Name="info" Size="16" />
+                    <span>The AI drafted these sections from what you wrote. Check each step; anything it didn't know is left empty for you.</span>
+                </div>
+            }
+
+            <div class="card stack g-4">
+                @switch (_step)
+                {
+                    case 0:
+                        <h3>Contact and summary</h3>
+                        <div class="grid grid-2 g-3">
+                            <div class="field"><label for="c-name">Full name<span class="req">*</span></label><input id="c-name" class="input" @bind="_form.Contact.FullName" /></div>
+                            <div class="field"><label for="c-email">Email</label><input id="c-email" class="input" type="email" @bind="_form.Contact.Email" /></div>
+                            <div class="field"><label for="c-phone">Phone</label><input id="c-phone" class="input" @bind="_form.Contact.Phone" placeholder="+91 98xxxxxx10" /></div>
+                            <div class="field"><label for="c-loc">Location</label><input id="c-loc" class="input" @bind="_form.Contact.Location" placeholder="Indore, Madhya Pradesh" /></div>
+                            <div class="field"><label for="c-li">LinkedIn</label><input id="c-li" class="input" @bind="_form.Contact.LinkedIn" placeholder="linkedin.com/in/yourname" /></div>
+                            <div class="field"><label for="c-gh">GitHub</label><input id="c-gh" class="input" @bind="_form.Contact.GitHub" placeholder="github.com/yourname" /></div>
+                            <div class="field"><label for="c-web">Portfolio or website</label><input id="c-web" class="input" @bind="_form.Contact.Website" /></div>
+                        </div>
+                        <div class="field">
+                            <label for="c-sum">Summary <span class="t-subtle" style="font-weight:400">(optional)</span></label>
+                            <textarea id="c-sum" class="textarea" maxlength="800" @bind="_form.Summary" placeholder="Two sentences: the role you want, your strongest skills and your best piece of work."></textarea>
+                        </div>
+                        break;
+
+                    case 1:
+                        <h3>Education</h3>
+                        @foreach (var e in _form.Education)
+                        {
+                            <div class="rs-entry">
+                                <button type="button" class="btn btn-ghost btn-icon btn-sm rs-entry-remove" aria-label="Remove" @onclick="() => _form.Education.Remove(e)"><SapIcon Name="x" Size="15" /></button>
+                                <div class="grid grid-2 g-3">
+                                    <div class="field"><label>College or school</label><input class="input" @bind="e.Institution" /></div>
+                                    <div class="field"><label>Degree</label><input class="input" @bind="e.Degree" placeholder="B.Tech" /></div>
+                                    <div class="field"><label>Field of study</label><input class="input" @bind="e.Field" placeholder="Computer Science & Engineering" /></div>
+                                    <div class="field"><label>Grade</label><input class="input" @bind="e.Grade" placeholder="CGPA 8.1/10 or 86%" /></div>
+                                    <div class="field"><label>Start</label><input class="input" @bind="e.Start" placeholder="2022" /></div>
+                                    <div class="field"><label>End</label><input class="input" @bind="e.End" placeholder="2026 (expected)" /></div>
+                                </div>
+                                <div class="field"><label>Highlights <span class="t-subtle" style="font-weight:400">(one per line, optional)</span></label>
+                                    <textarea class="textarea" style="min-height:70px" @bind="e.Highlights" placeholder="Relevant coursework: DBMS, Operating Systems"></textarea></div>
+                            </div>
+                        }
+                        <button type="button" class="btn btn-secondary btn-sm" style="align-self:flex-start" @onclick="() => _form.Education.Add(new())"><SapIcon Name="plus" Size="14" /> Add education</button>
+                        break;
+
+                    case 2:
+                        <h3>Experience</h3>
+                        <span class="t-small t-muted">Internships, jobs, freelance work or volunteering. Skip this if you have none yet; projects matter more for freshers.</span>
+                        @foreach (var e in _form.Experience)
+                        {
+                            <div class="rs-entry">
+                                <button type="button" class="btn btn-ghost btn-icon btn-sm rs-entry-remove" aria-label="Remove" @onclick="() => _form.Experience.Remove(e)"><SapIcon Name="x" Size="15" /></button>
+                                <div class="grid grid-2 g-3">
+                                    <div class="field"><label>Role</label><input class="input" @bind="e.Role" placeholder="Software Intern" /></div>
+                                    <div class="field"><label>Organisation</label><input class="input" @bind="e.Organisation" /></div>
+                                    <div class="field"><label>Location</label><input class="input" @bind="e.Location" placeholder="Indore or Remote" /></div>
+                                    <div class="row g-3">
+                                        <div class="field grow"><label>Start</label><input class="input" @bind="e.Start" placeholder="May 2025" /></div>
+                                        <div class="field grow"><label>End</label><input class="input" @bind="e.End" placeholder="Jul 2025" /></div>
+                                    </div>
+                                </div>
+                                <div class="field"><label>What you did <span class="t-subtle" style="font-weight:400">(one point per line)</span></label>
+                                    <textarea class="textarea" @bind="e.Bullets" placeholder="Built … using … so that …&#10;Reduced … from … to …"></textarea>
+                                    <span class="field-hint">Start with a verb and end with the result. Real numbers help most.</span></div>
+                            </div>
+                        }
+                        <button type="button" class="btn btn-secondary btn-sm" style="align-self:flex-start" @onclick="() => _form.Experience.Add(new())"><SapIcon Name="plus" Size="14" /> Add experience</button>
+                        break;
+
+                    case 3:
+                        <h3>Projects</h3>
+                        @foreach (var p in _form.Projects)
+                        {
+                            <div class="rs-entry">
+                                <button type="button" class="btn btn-ghost btn-icon btn-sm rs-entry-remove" aria-label="Remove" @onclick="() => _form.Projects.Remove(p)"><SapIcon Name="x" Size="15" /></button>
+                                <div class="grid grid-2 g-3">
+                                    <div class="field"><label>Project name</label><input class="input" @bind="p.Name" /></div>
+                                    <div class="field"><label>Technologies</label><input class="input" @bind="p.Technologies" placeholder="React, Node.js, MongoDB" /></div>
+                                    <div class="field"><label>Link <span class="t-subtle" style="font-weight:400">(GitHub or demo)</span></label><input class="input" @bind="p.Link" /></div>
+                                    <div class="row g-3">
+                                        <div class="field grow"><label>Start</label><input class="input" @bind="p.Start" /></div>
+                                        <div class="field grow"><label>End</label><input class="input" @bind="p.End" /></div>
+                                    </div>
+                                </div>
+                                <div class="field"><label>What it does and what you built <span class="t-subtle" style="font-weight:400">(one point per line)</span></label>
+                                    <textarea class="textarea" @bind="p.Bullets"></textarea></div>
+                            </div>
+                        }
+                        <button type="button" class="btn btn-secondary btn-sm" style="align-self:flex-start" @onclick="() => _form.Projects.Add(new())"><SapIcon Name="plus" Size="14" /> Add project</button>
+                        break;
+
+                    case 4:
+                        <h3>Skills</h3>
+                        <span class="t-small t-muted">Group them so a recruiter can scan them. Separate skills with commas.</span>
+                        @foreach (var g in _form.Skills)
+                        {
+                            <div class="row-top g-3 wrap">
+                                <div class="field" style="flex:0 1 200px"><label>Group</label><input class="input" @bind="g.Category" placeholder="Languages" /></div>
+                                <div class="field grow" style="min-width:220px"><label>Skills</label><input class="input" @bind="g.Items" placeholder="Java, Python, SQL" /></div>
+                                <button type="button" class="btn btn-ghost btn-icon btn-sm" style="margin-top:30px" aria-label="Remove group" @onclick="() => _form.Skills.Remove(g)"><SapIcon Name="x" Size="15" /></button>
+                            </div>
+                        }
+                        <button type="button" class="btn btn-secondary btn-sm" style="align-self:flex-start" @onclick="() => _form.Skills.Add(new())"><SapIcon Name="plus" Size="14" /> Add skill group</button>
+                        break;
+
+                    case 5:
+                        <h3>Certifications and achievements</h3>
+                        <span class="t-small t-muted">NPTEL or other certificates, hackathons, awards, and positions of responsibility.</span>
+                        @foreach (var a in _form.Achievements)
+                        {
+                            <div class="rs-entry">
+                                <button type="button" class="btn btn-ghost btn-icon btn-sm rs-entry-remove" aria-label="Remove" @onclick="() => _form.Achievements.Remove(a)"><SapIcon Name="x" Size="15" /></button>
+                                <div class="grid grid-2 g-3">
+                                    <div class="field"><label>Title</label><input class="input" @bind="a.Title" placeholder="2nd place, Code Sprint hackathon" /></div>
+                                    <div class="field"><label>Issuer or event</label><input class="input" @bind="a.Issuer" placeholder="NPTEL, SGSITS" /></div>
+                                    <div class="field"><label>Date</label><input class="input" @bind="a.Date" placeholder="Mar 2025" /></div>
+                                    <div class="field"><label>Detail <span class="t-subtle" style="font-weight:400">(optional)</span></label><input class="input" @bind="a.Detail" /></div>
+                                </div>
+                            </div>
+                        }
+                        <button type="button" class="btn btn-secondary btn-sm" style="align-self:flex-start" @onclick="() => _form.Achievements.Add(new())"><SapIcon Name="plus" Size="14" /> Add achievement</button>
+                        break;
+
+                    default:
+                        <h3>Template</h3>
+                        <div class="field">
+                            <label for="rs-title">Name this resume</label>
+                            <input id="rs-title" class="input" maxlength="80" @bind="_title" />
+                            <span class="field-hint">Only you see this. Useful when you keep one resume per role.</span>
+                        </div>
+                        <ResumeTemplatePicker @bind-Value="_template" />
+                        <span class="field-hint">Hindi and other non-Latin text is left out of the PDF, because the templates use Latin fonts.</span>
+                        break;
+                }
+
+                @if (_error is not null)
+                {
+                    <span class="field-error">@_error</span>
+                }
+
+                <div class="row between g-3 wrap" style="padding-top:var(--sp-2);border-top:1px solid var(--line)">
+                    <button type="button" class="btn btn-ghost" @onclick="Back" disabled="@(_busy || (_step == 0 && !_promptMode))">
+                        <SapIcon Name="arrow-left" Size="15" /> Back
+                    </button>
+                    @if (_step < Steps.Length - 1)
+                    {
+                        <button type="button" class="btn btn-primary" @onclick="Next">
+                            Next: @Steps[_step + 1] <SapIcon Name="arrow-right" Size="15" />
+                        </button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn-primary" @onclick="CreateAsync" disabled="@_busy">
+                            @if (_busy)
+                            {
+                                <span class="rs-spinner sm" aria-hidden="true"></span>
+                                <span>Creating…</span>
+                            }
+                            else
+                            {
+                                <SapIcon Name="check" Size="15" />
+                                <span>Create and open editor</span>
+                            }
+                        </button>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private static readonly string[] Steps = ["Contact", "Education", "Experience", "Projects", "Skills", "Achievements", "Template"];
+
+    [SupplyParameterFromQuery] public string? Mode { get; set; }
+
+    private ResumeForm? _form;
+    private int _step;
+    private bool _promptMode;
+    private bool _describing;
+    private bool _drafted;
+    private string _description = "";
+    private string _title = "My resume";
+    private string _template = ResumeTemplates.SingleColumn;
+    private bool _busy;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _promptMode = _describing = Mode == "prompt";
+        if (FormFactor.Platform == "Web")
+        {
+            _form = ResumeForm.From(await Resumes.GetStarterDataAsync());
+        }
+    }
+
+    private void Next()
+    {
+        _error = null;
+        if (_step == 0 && string.IsNullOrWhiteSpace(_form!.Contact.FullName))
+        {
+            _error = "Add your name to continue.";
+            return;
+        }
+
+        _step++;
+    }
+
+    private void Back()
+    {
+        _error = null;
+        if (_step == 0 && _promptMode)
+        {
+            _describing = true;
+            return;
+        }
+
+        _step = Math.Max(0, _step - 1);
+    }
+
+    private async Task DraftAsync()
+    {
+        _error = null;
+        _busy = true;
+        try
+        {
+            var draft = ResumeForm.From(await Resumes.DraftFromDescriptionAsync(new DescribeYourselfRequest(_description)));
+
+            // The profile knows the education and skills for sure; keep those when the draft left them out.
+            if (draft.Education.Count == 0)
+            {
+                draft.Education = _form!.Education;
+            }
+
+            if (draft.Skills.Count == 0)
+            {
+                draft.Skills = _form!.Skills;
+            }
+
+            _form = draft;
+            _drafted = true;
+            _describing = false;
+            _step = 0;
+        }
+        catch (ResumeProblemException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        _error = null;
+        if (string.IsNullOrWhiteSpace(_form!.Contact.FullName))
+        {
+            _step = 0;
+            _error = "Add your name first.";
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var resume = await Resumes.CreateFromDataAsync(new CreateResumeRequest(_title, _template, _drafted ? "prompt" : "wizard", _form.ToDto()));
+            Nav.NavigateTo($"/resume/{resume.Id}");
+        }
+        catch (ResumeProblemException ex)
+        {
+            _error = ex.Message;
+            _busy = false;
+        }
+    }
+}

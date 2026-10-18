@@ -1,0 +1,110 @@
+@namespace Sapling.Web.Components.Layout
+@inherits LayoutComponentBase
+@inject InstituteService Institutes
+@inject NavigationManager Nav
+
+<div class="shell-desktop shell-staff">
+    <nav class="sidebar">
+        <div class="sidebar-brand">
+            <SapLogo Size="30" />
+        </div>
+
+        <div class="sidebar-nav">
+            @foreach (var (label, route, icon, exact, hue) in _nav)
+            {
+                <NavLink class="@($"nav-item hue-{hue}")" href="@route" Match="@(exact ? NavLinkMatch.All : NavLinkMatch.Prefix)">
+                    <SapIcon Name="@icon" Size="18" />
+                    <span>@label</span>
+                </NavLink>
+            }
+        </div>
+
+        <div class="sidebar-foot">
+            <NavLink class="nav-item hue-profile" href="/institute/profile">
+                @if (!string.IsNullOrEmpty(_profile?.LogoDataUrl))
+                {
+                    <img src="@_profile.LogoDataUrl" alt="@_profile.Name" class="avatar"
+                         style="width:26px;height:26px;object-fit:cover;border-radius:var(--r-pill)" />
+                }
+                else
+                {
+                    <span class="avatar" style="width:26px;height:26px;font-size:11px">@Initials</span>
+                }
+                <span class="stack grow" style="gap:0">
+                    <span style="font-size:13px">@DisplayName</span>
+                    <span class="t-caption t-subtle" style="font-weight:400">Institute profile</span>
+                </span>
+            </NavLink>
+            <a class="nav-item" href="/signout" data-enhance-nav="false">
+                <SapIcon Name="log-out" Size="18" />
+                <span>Sign out</span>
+            </a>
+        </div>
+    </nav>
+
+    <div class="shell-main">
+        <main class="page">
+            <CascadingValue Value="_profile" Name="Institute">
+                @if (_loading)
+                {
+                    <div class="stack g-3">
+                        <div class="skeleton" style="height:28px;width:240px"></div>
+                        <div class="card"><div class="skeleton" style="height:180px"></div></div>
+                    </div>
+                }
+                else
+                {
+                    @Body
+                }
+            </CascadingValue>
+        </main>
+    </div>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Something went wrong.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">&times;</span>
+</div>
+
+@code {
+    private static readonly (string Label, string Route, string Icon, bool Exact, string Hue)[] _nav =
+    [
+        ("Dashboard", "/institute", "home", true, "brand"),
+        ("Community", "/institute/community", "megaphone", false, "community"),
+        ("Students", "/institute/students", "users", false, "career"),
+        ("Profile", "/institute/profile", "building", false, "profile"),
+    ];
+
+    private InstituteProfileDto? _profile;
+    private bool _loading = true;
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    private string DisplayName => _profile is null
+        ? "Institute"
+        : string.IsNullOrWhiteSpace(_profile.ShortName) ? _profile.Name : _profile.ShortName;
+
+    private string Initials => string.Concat(
+        DisplayName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState is not null
+            && (await AuthState).User.FindFirst(AppUserClaimsPrincipalFactory.AccountTypeClaim)?.Value != AccountTypes.Institution)
+        {
+            Nav.NavigateTo("/home", replace: true);
+            return;
+        }
+
+        _profile = await Institutes.FindProfileAsync();
+        _loading = false;
+
+        // Until the account names its college there is nothing to show, so setup comes first.
+        var path = Nav.ToBaseRelativePath(Nav.Uri);
+        if (_profile is null && !path.StartsWith("institute/setup", StringComparison.OrdinalIgnoreCase))
+        {
+            Nav.NavigateTo("/institute/setup", replace: true);
+        }
+    }
+}

@@ -1,0 +1,19 @@
+@namespace Sapling.Shared.Components
+
+<span class="badge badge-@Tone @Class">
+    @if (!string.IsNullOrEmpty(Icon))
+    {
+        <SapIcon Name="@Icon" Size="13" Stroke="2.2" />
+    }
+    @ChildContent
+</span>
+
+@code {
+    [Parameter] public string Tone { get; set; } = "neutral";
+
+    [Parameter] public string? Icon { get; set; }
+
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

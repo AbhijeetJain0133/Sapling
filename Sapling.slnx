@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="Sapling.Shared/Sapling.Shared.csproj" />
+  <Project Path="Sapling.Web/Sapling.Web.csproj" />
+  <Project Path="Sapling/Sapling.csproj" />
+</Solution>

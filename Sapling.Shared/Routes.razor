@@ -1,0 +1,23 @@
+@namespace Sapling.Shared
+@using Microsoft.AspNetCore.Components.Authorization
+@inject Services.RouteAssemblies RouteAssemblies
+
+<CascadingAuthenticationState>
+    <Router AppAssembly="typeof(Layout.AppLayout).Assembly"
+            AdditionalAssemblies="RouteAssemblies.All"
+            NotFoundPage="typeof(Pages.NotFound)">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.AppLayout)">
+                <NotAuthorized>
+                    <RedirectToSignIn />
+                </NotAuthorized>
+                <Authorizing>
+                    <div class="stack center" style="min-height:60vh">
+                        <div class="skeleton" style="width:220px;height:14px"></div>
+                    </div>
+                </Authorizing>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        </Found>
+    </Router>
+</CascadingAuthenticationState>

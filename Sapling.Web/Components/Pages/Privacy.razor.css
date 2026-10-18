@@ -1,0 +1,133 @@
+/* A plain reading page: one narrow column, generous line height. */
+.policy-page {
+    min-height: 100vh;
+    background: var(--bg);
+}
+
+.policy-top,
+.policy-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    max-width: 800px;
+    padding-top: var(--sp-5);
+    padding-bottom: var(--sp-5);
+}
+
+.policy-foot {
+    border-top: 1px solid var(--line);
+}
+
+.policy {
+    max-width: 800px;
+    padding-top: var(--sp-4);
+    padding-bottom: var(--sp-7);
+    font-size: 16px;
+    line-height: 26px;
+    color: var(--ink);
+}
+
+.policy h1 {
+    margin: var(--sp-1) 0 var(--sp-4);
+    font-size: 36px;
+    line-height: 42px;
+}
+
+.policy h2 {
+    margin: var(--sp-7) 0 var(--sp-3);
+    font-size: 22px;
+    line-height: 28px;
+}
+
+.policy h3 {
+    margin: var(--sp-5) 0 var(--sp-2);
+    font-size: 17px;
+    line-height: 24px;
+}
+
+.policy p {
+    margin: 0 0 var(--sp-3);
+}
+
+.policy ul {
+    margin: 0 0 var(--sp-3);
+    padding-left: 22px;
+}
+
+.policy li {
+    margin-bottom: var(--sp-2);
+}
+
+.policy-lede {
+    font-size: 18px;
+    line-height: 28px;
+    color: var(--muted);
+}
+
+.policy-summary {
+    margin: var(--sp-5) 0;
+    border-color: color-mix(in srgb, var(--green) 35%, var(--line));
+    background: var(--green-soft);
+}
+
+.policy-summary-title {
+    display: block;
+    margin-bottom: var(--sp-2);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 17px;
+    color: var(--green-text);
+}
+
+.policy-summary ul {
+    margin-bottom: 0;
+}
+
+.policy-table-wrap {
+    margin: 0 0 var(--sp-3);
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+}
+
+.policy-table {
+    width: 100%;
+    min-width: 560px;
+    border-collapse: collapse;
+    font-size: 14px;
+    line-height: 21px;
+}
+
+.policy-table th,
+.policy-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    vertical-align: top;
+}
+
+.policy-table th {
+    background: var(--surface2);
+    font-weight: 700;
+}
+
+.policy-table tr:last-child td {
+    border-bottom: 0;
+}
+
+.policy-table td:first-child {
+    font-weight: 600;
+}
+
+@media (max-width: 599px) {
+    .policy {
+        font-size: 15px;
+        line-height: 24px;
+    }
+
+    .policy h1 {
+        font-size: 28px;
+        line-height: 34px;
+    }
+}

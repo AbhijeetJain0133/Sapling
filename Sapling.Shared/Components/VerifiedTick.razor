@@ -1,0 +1,10 @@
+@namespace Sapling.Shared.Components
+
+<span class="verified-tick" title="Verified institute" role="img" aria-label="Verified institute"
+      style="width:@(Size)px;height:@(Size)px">
+    <SapIcon Name="check" Size="@(Size - 5)" Stroke="3.2" />
+</span>
+
+@code {
+    [Parameter] public int Size { get; set; } = 16;
+}

@@ -1,0 +1,104 @@
+@namespace Sapling.Shared.Components
+
+@if (Analysis is null)
+{
+    <div class="stack center g-3" style="text-align:center;padding:var(--sp-6) var(--sp-3)">
+        <span class="icon-tile" style="width:48px;height:48px"><SapIcon Name="gauge" Size="22" /></span>
+        <div class="stack g-1">
+            <h4>Not scored yet</h4>
+            <p class="t-small t-muted">The AI reviewer scores your resume like a recruiter and an ATS would, and lists fixes you can apply in one click.</p>
+        </div>
+        <button type="button" class="btn btn-primary" @onclick="OnRecheck" disabled="@(Busy is not null)">
+            <SapIcon Name="sparkles" Size="15" />
+            Check my score
+        </button>
+    </div>
+}
+else
+{
+    <div class="stack g-4">
+        <div class="row-top g-4">
+            <div style="flex:none"><ScoreRing Value="Analysis.Overall" Size="96" Thickness="9" Label="Resume score" /></div>
+            <div class="stack g-2 grow" style="min-width:0">
+                <span class="t-small">@Analysis.Summary</span>
+                @if (Stale)
+                {
+                    <span class="row g-1 t-caption" style="color:var(--warn-text)">
+                        <SapIcon Name="clock" Size="13" /> You've edited since this score.
+                    </span>
+                }
+                <button type="button" class="btn @(Stale ? "btn-primary" : "btn-secondary") btn-sm" style="align-self:flex-start"
+                        @onclick="OnRecheck" disabled="@(Busy is not null)">
+                    <SapIcon Name="refresh" Size="14" />
+                    Re-check score
+                </button>
+            </div>
+        </div>
+
+        @if (Analysis.Scores.Count > 0)
+        {
+            <div class="stack g-3">
+                @foreach (var score in Analysis.Scores)
+                {
+                    <div class="stack g-1" title="@score.Comment">
+                        <LinearBar Percent="score.Score" Label="@score.Area" ValueText="@score.Score.ToString()" Small="true"
+                                   Tone="@(score.Score >= 75 ? "success" : score.Score >= 55 ? "primary" : "accent")" />
+                        <span class="t-caption t-subtle">@score.Comment</span>
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="stack g-2">
+            <div class="row between g-2">
+                <span class="t-overline t-subtle">Suggestions</span>
+                <span class="t-caption t-subtle">@Analysis.Suggestions.Count(s => s.Applied) of @Analysis.Suggestions.Count applied</span>
+            </div>
+            @foreach (var s in Analysis.Suggestions)
+            {
+                <div class="rs-suggestion" data-severity="@s.Severity.ToLowerInvariant()">
+                    <div class="row between g-2 wrap">
+                        <div class="row g-2">
+                            <SapBadge Tone="neutral">@s.Section</SapBadge>
+                            <SapBadge Tone="@(s.Severity switch { "High" => "error", "Low" => "info", _ => "warn" })">@s.Severity</SapBadge>
+                        </div>
+                        @if (s.Applied)
+                        {
+                            <SapBadge Tone="success" Icon="check">Applied</SapBadge>
+                        }
+                    </div>
+                    <span class="t-small">@s.Issue</span>
+                    <span class="t-small t-muted"><b>Fix:</b> @s.Fix</span>
+                    @if (!s.Applied)
+                    {
+                        <button type="button" class="btn btn-secondary btn-sm" style="align-self:flex-start"
+                                @onclick="() => OnApply.InvokeAsync(s)" disabled="@(Busy is not null)">
+                            @if (Busy == $"apply-{s.Id}")
+                            {
+                                <span>Applying…</span>
+                            }
+                            else
+                            {
+                                <SapIcon Name="sparkles" Size="14" />
+                                <span>Apply with AI</span>
+                            }
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public ResumeAnalysisDto? Analysis { get; set; }
+
+    [Parameter] public bool Stale { get; set; }
+
+    /// <summary>What the editor is busy with ("analyse", "apply-3", "edit"), or null when idle.</summary>
+    [Parameter] public string? Busy { get; set; }
+
+    [Parameter] public EventCallback<ResumeSuggestionDto> OnApply { get; set; }
+
+    [Parameter] public EventCallback OnRecheck { get; set; }
+}

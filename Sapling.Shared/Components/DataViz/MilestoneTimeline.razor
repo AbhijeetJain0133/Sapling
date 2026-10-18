@@ -1,0 +1,48 @@
+@namespace Sapling.Shared.Components
+
+<ol class="stack" style="list-style:none;margin:0;padding:0">
+    @foreach (var (item, index) in Items.Select((m, i) => (m, i)))
+    {
+        var last = index == Items.Count - 1;
+        <li class="row-top g-3" style="padding-bottom:@(last ? "0" : "18px");position:relative">
+            @if (!last)
+            {
+                <span style="position:absolute;left:11px;top:26px;bottom:0;width:2px;background:var(--line)"></span>
+            }
+            <span class="row center" style="width:24px;height:24px;flex:none;border-radius:var(--r-pill);z-index:1;
+                         background:@(item.State == MilestoneState.Done ? "var(--primary)" : item.State == MilestoneState.Active ? "var(--primary-soft)" : "var(--surface)");
+                         border:@(item.State == MilestoneState.Pending ? "2px dashed var(--line)" : item.State == MilestoneState.Active ? "2px solid var(--primary)" : "none");
+                         color:var(--primary-on)">
+                @if (item.State == MilestoneState.Done)
+                {
+                    <SapIcon Name="check" Size="14" Stroke="2.5" />
+                }
+                else if (item.State == MilestoneState.Active)
+                {
+                    <span style="width:8px;height:8px;border-radius:50%;background:var(--primary)"></span>
+                }
+            </span>
+            <div class="grow stack" style="gap:2px">
+                <div class="row between g-2 wrap">
+                    <span style="font-weight:600;font-size:14px;color:@(item.State == MilestoneState.Pending ? "var(--muted)" : "var(--ink)")">@item.Title</span>
+                    @if (!string.IsNullOrEmpty(item.Meta))
+                    {
+                        <span class="t-caption t-subtle">@item.Meta</span>
+                    }
+                </div>
+                @if (!string.IsNullOrEmpty(item.Detail))
+                {
+                    <span class="t-small t-muted">@item.Detail</span>
+                }
+            </div>
+        </li>
+    }
+</ol>
+
+@code {
+    public enum MilestoneState { Done, Active, Pending }
+
+    public sealed record Milestone(string Title, string? Detail, string? Meta, MilestoneState State);
+
+    [Parameter, EditorRequired] public IReadOnlyList<Milestone> Items { get; set; } = [];
+}

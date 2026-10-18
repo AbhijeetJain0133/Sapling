@@ -1,0 +1,37 @@
+@namespace Sapling.Shared.Components
+
+<div class="stack center g-3 empty-state hue-@Hue" style="text-align:center;padding:var(--sp-6) var(--sp-4)">
+    @if (Art is not null)
+    {
+        <SapArt Name="@Art" Size="168" />
+    }
+    else
+    {
+        <span class="icon-tile icon-tile-lg">
+            <SapIcon Name="@Icon" Size="26" />
+        </span>
+    }
+    <div class="stack g-1">
+        <h4>@Title</h4>
+        @if (!string.IsNullOrEmpty(Description))
+        {
+            <p class="t-small t-muted" style="max-width:42ch;margin-inline:auto">@Description</p>
+        }
+    </div>
+    @ChildContent
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+
+    [Parameter] public string? Description { get; set; }
+
+    [Parameter] public string Icon { get; set; } = "info";
+
+    /// <summary>A SapArt scene shown instead of the icon, e.g. nothing-here, search, success, not-found.</summary>
+    [Parameter] public string? Art { get; set; }
+
+    [Parameter] public string Hue { get; set; } = "profile";
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

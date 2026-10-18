@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="456" height="456" viewBox="0 0 456 456" version="1.1" xmlns="http://www.w3.org/2000/svg">
+    <!-- Sized to sit inside the adaptive-icon safe zone so the leaf never meets the mask edge. -->
+    <g transform="translate(1.5 -9.4) scale(0.345)">
+        <rect x="438.97" y="565.28" width="137.93" height="470.69" rx="68.97" ry="68.97" fill="#006838" />
+        <path d="M512.49,680.17s122.65-392.5,376.72-331.97c0,0-37.11,330.13-376.72,331.97Z" fill="#2E9163" />
+        <circle cx="507.34" cy="543.66" r="83.09" fill="#FF6B4A" />
+    </g>
+</svg>

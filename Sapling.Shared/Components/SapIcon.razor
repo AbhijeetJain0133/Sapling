@@ -1,0 +1,17 @@
+@namespace Sapling.Shared.Components
+
+<svg xmlns="http://www.w3.org/2000/svg" width="@Size" height="@Size" viewBox="0 0 24 24"
+     fill="none" stroke="currentColor" stroke-width="@Stroke" stroke-linecap="round" stroke-linejoin="round"
+     class="@Class" aria-hidden="true" focusable="false">
+    <path d="@Icons.Get(Name)" />
+</svg>
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = "info";
+
+    [Parameter] public int Size { get; set; } = 20;
+
+    [Parameter] public double Stroke { get; set; } = 1.75;
+
+    [Parameter] public string? Class { get; set; }
+}

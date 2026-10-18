@@ -1,0 +1,211 @@
+@namespace Sapling.Web.Components.Shared
+@inject InstituteService Institutes
+
+<SapModal Title="@(IsNew ? "New post" : "Edit post")" OnClose="OnClose" Wide>
+    <ChildContent>
+        <div class="stack g-4">
+            @if (_error is not null)
+            {
+                <div class="badge badge-error" role="alert" style="padding:10px 14px;border-radius:var(--r-md);white-space:normal">
+                    <SapIcon Name="alert-circle" Size="15" />
+                    @_error
+                </div>
+            }
+
+            @* Left: what the post says. Right: the optional details. One column on narrow screens. *@
+            <div class="composer-grid">
+                <div class="stack g-4">
+                    <div class="field">
+                        <label>What kind of post is this?</label>
+                        <SapSegmented TValue="string" Options="_kinds" @bind-Value="_kind" />
+                    </div>
+
+                    <div class="field">
+                        <label for="title">Title</label>
+                        <input id="title" class="input" maxlength="140" @bind="_title" @bind:event="oninput"
+                               placeholder="Docker fundamentals workshop" />
+                    </div>
+
+                    <div class="field">
+                        <label for="body">Body</label>
+                        <textarea id="body" class="input" rows="9" maxlength="4000" @bind="_body" @bind:event="oninput"
+                                  placeholder="Who it is for, what they will do, and what to bring."></textarea>
+                        <span class="field-hint">@_body.Length / 4000</span>
+                    </div>
+                </div>
+
+                <div class="stack g-4">
+                    <div class="grid grid-2">
+                        <div class="field">
+                            <label for="startsAt">Date and time <span class="t-subtle">(optional)</span></label>
+                            <input id="startsAt" type="datetime-local" class="input" @bind="_startsAt" />
+                        </div>
+                        <div class="field">
+                            <label for="venue">Venue <span class="t-subtle">(optional)</span></label>
+                            <input id="venue" class="input" maxlength="120" @bind="_venue" placeholder="Seminar hall, or Online" />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-2">
+                        <div class="field">
+                            <label for="ctaUrl">Link <span class="t-subtle">(optional)</span></label>
+                            <input id="ctaUrl" class="input" @bind="_ctaUrl" @bind:event="oninput" placeholder="https://..." />
+                        </div>
+                        <div class="field">
+                            <label for="ctaLabel">Button label</label>
+                            <input id="ctaLabel" class="input" maxlength="32" @bind="_ctaLabel"
+                                   disabled="@(_ctaUrl.Trim().Length == 0)" placeholder="Register" />
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label for="tags">Tags <span class="t-subtle">(optional)</span></label>
+                        <input id="tags" class="input" @bind="_tags" placeholder="Docker, Cloud, Linux" />
+                        <span class="field-hint">Comma separated, up to eight.</span>
+                    </div>
+
+                    <div class="field">
+                        <label>Artwork <span class="t-subtle">(optional)</span></label>
+                        <div class="row g-3 wrap">
+                            @if (!string.IsNullOrEmpty(_imageUrl))
+                            {
+                                <img src="@_imageUrl" alt="Post artwork" style="width:140px;height:80px;object-fit:cover;border-radius:var(--r-md)" />
+                            }
+                            <div class="stack g-2" style="min-width:0">
+                                <InputFile OnChange="OnImageSelectedAsync" accept="image/*" class="input" />
+                                <span class="field-hint">PNG, JPG or WEBP under 1 MB.</span>
+                                @if (!string.IsNullOrEmpty(_imageUrl))
+                                {
+                                    <button type="button" class="btn btn-ghost btn-sm t-error" @onclick="() => _imageUrl = null">
+                                        <SapIcon Name="trash" Size="14" />
+                                        Remove artwork
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </ChildContent>
+
+    <Footer>
+        <div class="row between g-2 wrap">
+            <span class="t-caption t-subtle">Every student of your college sees this.</span>
+            <div class="row g-2">
+                <button type="button" class="btn btn-ghost" @onclick="OnClose">Cancel</button>
+                <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                    @(_saving ? "Saving…" : IsNew ? "Post" : "Save changes")
+                </button>
+            </div>
+        </div>
+    </Footer>
+</SapModal>
+
+@code {
+    private const int MaxUploadBytes = 1_000_000;
+
+    [Parameter, EditorRequired] public InstitutePostDto Draft { get; set; } = default!;
+
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private static readonly IReadOnlyList<SapSegmented<string>.Option> _kinds =
+    [
+        new(PostKinds.Announcement, "Announcement"),
+        new(PostKinds.Workshop, "Workshop"),
+        new(PostKinds.Event, "Event"),
+        new(PostKinds.Opportunity, "Opportunity"),
+    ];
+
+    private string _kind = PostKinds.Announcement;
+    private string _title = "";
+    private string _body = "";
+    private DateTime? _startsAt;
+    private string _venue = "";
+    private string _ctaLabel = "";
+    private string _ctaUrl = "";
+    private string _tags = "";
+    private string? _imageUrl;
+    private string? _error;
+    private bool _saving;
+
+    private bool IsNew => Draft.Id == 0;
+
+    protected override void OnParametersSet()
+    {
+        _kind = Draft.Kind;
+        _title = Draft.Title;
+        _body = Draft.Body;
+        // The picker works in local time; the service converts back to UTC on save.
+        _startsAt = Draft.StartsAt?.ToLocalTime().DateTime;
+        _venue = Draft.Venue ?? "";
+        _ctaLabel = Draft.CtaLabel ?? "";
+        _ctaUrl = Draft.CtaUrl ?? "";
+        _tags = string.Join(", ", Draft.Tags);
+        _imageUrl = Draft.ImageUrl;
+    }
+
+    private async Task OnImageSelectedAsync(InputFileChangeEventArgs e)
+    {
+        _error = null;
+        var file = e.File;
+        if (file is null)
+        {
+            return;
+        }
+
+        if (file.Size > MaxUploadBytes)
+        {
+            _error = "That image is too large. Use one under 1 MB.";
+            return;
+        }
+
+        using var stream = new MemoryStream();
+        await using (var source = file.OpenReadStream(MaxUploadBytes))
+        {
+            await source.CopyToAsync(stream);
+        }
+
+        _imageUrl = $"data:{file.ContentType};base64,{Convert.ToBase64String(stream.ToArray())}";
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            var request = new SavePostRequest(
+                _kind,
+                _title,
+                _body,
+                _startsAt is { } local ? new DateTimeOffset(local, TimeZoneInfo.Local.GetUtcOffset(local)) : null,
+                _venue,
+                _ctaLabel,
+                _ctaUrl,
+                _imageUrl,
+                _tags);
+
+            if (IsNew)
+            {
+                await Institutes.CreatePostAsync(request);
+            }
+            else
+            {
+                await Institutes.UpdatePostAsync(Draft.Id, request);
+            }
+
+            await OnSaved.InvokeAsync();
+        }
+        catch (Exception e) when (e is ArgumentException or InvalidOperationException)
+        {
+            _error = e.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

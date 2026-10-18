@@ -1,0 +1,26 @@
+@namespace Sapling.Shared.Components
+
+@* The logo growing up: seed (1), seed on a stem (2), with the leaf (3), full plant with a second leaf (4). *@
+<svg viewBox="280 316 752 752" width="@Size" height="@Size" aria-hidden="true" focusable="false">
+    @if (Stage >= 2)
+    {
+        <rect x="438.97" y="@(Stage == 2 ? 720 : 565.28)" width="137.93" height="@(Stage == 2 ? 316 : 470.69)" rx="68.97" ry="68.97" fill="var(--brand-stem)" />
+    }
+    @if (Stage >= 4)
+    {
+        <path d="@ArtLibrary.LeafPath" fill="var(--brand-leaf)" opacity=".7"
+              transform="translate(512 820) scale(-0.72 0.72) translate(-512 -680)" />
+    }
+    @if (Stage >= 3)
+    {
+        <path d="@ArtLibrary.LeafPath" fill="var(--brand-leaf)" />
+    }
+    <circle cx="507.34" cy="@(Stage == 1 ? 700 : Stage == 2 ? 700 : 543.66)" r="@(Stage == 1 ? 120 : 83.09)" fill="var(--brand-seed)" />
+</svg>
+
+@code {
+    /// <summary>1 to 4.</summary>
+    [Parameter] public int Stage { get; set; } = 1;
+
+    [Parameter] public int Size { get; set; } = 28;
+}

@@ -1,0 +1,274 @@
+/* Sapling design tokens.
+   Theme: html[data-sapling-theme] is the choice (light | dark | system); html[data-sapling-mode] is what it resolves
+   to and is the only attribute the stylesheets read. The host page and sapling.js keep it set.
+
+   Colour rules:
+   1. White text sits only over the deep "a" end of a hue gradient, with the .g-card scrim behind it.
+   2. Dark ink only on -soft tints or --surface, never directly on a hue.
+   3. Semantic colours (success/warn/error/info) mean status; hues (--hue-*) mean identity, never meaning.
+   4. Dark mode keeps the same hues at lower lightness and saturation; glows do the work shadows can't. */
+
+:root {
+    color-scheme: light;
+
+    /* Surfaces */
+    --bg: #F6F8FB;
+    --surface: #FFFFFF;
+    --surface2: #EDF1F6;
+    --line: #DCE3EB;
+
+    /* Ink */
+    --ink: #16202B;
+    --muted: #44505C;
+    --subtle: #5A6672;
+
+    /* Primary */
+    --primary: #1F5C9E;
+    --primary-hover: #1A4E86;
+    --primary-soft: #DCEAF7;
+    --primary-text: #1B5490;
+    --primary-on: #FFFFFF;
+    --track: #DCEAF7;
+
+    /* Brand colours promoted to UI use: the logo's leaf green and seed coral */
+    --green: #1F8A5B;
+    --green-hover: #187449;
+    --green-soft: #DDF3E7;
+    --green-text: #14603F;
+    --green-on: #FFFFFF;
+    --coral: #FF6B4A;
+    --coral-hover: #F25A38;
+    --coral-soft: #FFE6DF;
+    --coral-text: #B03A20;
+    --coral-on: #2A120B;
+
+    /* Accent (amber) - kept for warm "do something" affordances such as the government track */
+    --accent: #E39A3B;
+    --accent-hover: #CE8A2F;
+    --accent-soft: #FAEEDC;
+    --accent-on: #38220A;
+
+    /* Semantic */
+    --success: #2E8757;
+    --success-soft: #E4F1EA;
+    --success-text: #1F6343;
+    --warn: #C7891F;
+    --warn-soft: #FBF0D8;
+    --warn-text: #6B4E14;
+    --error: #C0392B;
+    --error-soft: #FAE6E3;
+    --error-text: #8E2A1F;
+    --info: #5B6ABF;
+    --info-soft: #E8EAF8;
+    --info-text: #3B4795;
+
+    /* Data-viz series. Accent is deliberately absent. */
+    --viz-1: #1F5C9E;
+    --viz-2: #2A8C88;
+    --viz-3: #8E5A96;
+    --viz-4: #B0722E;
+    --viz-5: #8FC0E8;
+
+    /* Brand mark colours (logo geometry) */
+    --brand-stem: #006838;
+    --brand-leaf: #2E9163;
+    --brand-seed: #FF6B4A;
+
+    /* Feature hue pairs: "a" is the deep end text sits on, "b" the bright end */
+    --hue-career-a: #2F63D6;
+    --hue-career-b: #6A4DE8;
+    --hue-roadmap-a: #158257;
+    --hue-roadmap-b: #3DB984;
+    --hue-opportunities-a: #D9502F;
+    --hue-opportunities-b: #FF8E5A;
+    --hue-resume-a: #0E7F86;
+    --hue-resume-b: #33B8AE;
+    --hue-interview-a: #6D35C8;
+    --hue-interview-b: #B25FE6;
+    --hue-govt-a: #B5641A;
+    --hue-govt-b: #E7A03E;
+    --hue-community-a: #C93468;
+    --hue-community-b: #F0709C;
+    --hue-profile-a: #1F5C9E;
+    --hue-profile-b: #3EA9CC;
+    --hue-brand-a: #006838;
+    --hue-brand-b: #2E9163;
+
+    /* Derived once: they re-resolve in dark mode because the -a values and --surface/--ink change */
+    --hue-career-soft: color-mix(in srgb, var(--hue-career-a) 13%, var(--surface));
+    --hue-career-text: color-mix(in srgb, var(--hue-career-a) 78%, var(--ink));
+    --hue-career-glow: color-mix(in srgb, var(--hue-career-a) 45%, transparent);
+    --hue-roadmap-soft: color-mix(in srgb, var(--hue-roadmap-a) 13%, var(--surface));
+    --hue-roadmap-text: color-mix(in srgb, var(--hue-roadmap-a) 78%, var(--ink));
+    --hue-roadmap-glow: color-mix(in srgb, var(--hue-roadmap-a) 45%, transparent);
+    --hue-opportunities-soft: color-mix(in srgb, var(--hue-opportunities-a) 13%, var(--surface));
+    --hue-opportunities-text: color-mix(in srgb, var(--hue-opportunities-a) 78%, var(--ink));
+    --hue-opportunities-glow: color-mix(in srgb, var(--hue-opportunities-a) 45%, transparent);
+    --hue-resume-soft: color-mix(in srgb, var(--hue-resume-a) 13%, var(--surface));
+    --hue-resume-text: color-mix(in srgb, var(--hue-resume-a) 78%, var(--ink));
+    --hue-resume-glow: color-mix(in srgb, var(--hue-resume-a) 45%, transparent);
+    --hue-interview-soft: color-mix(in srgb, var(--hue-interview-a) 13%, var(--surface));
+    --hue-interview-text: color-mix(in srgb, var(--hue-interview-a) 78%, var(--ink));
+    --hue-interview-glow: color-mix(in srgb, var(--hue-interview-a) 45%, transparent);
+    --hue-govt-soft: color-mix(in srgb, var(--hue-govt-a) 13%, var(--surface));
+    --hue-govt-text: color-mix(in srgb, var(--hue-govt-a) 78%, var(--ink));
+    --hue-govt-glow: color-mix(in srgb, var(--hue-govt-a) 45%, transparent);
+    --hue-community-soft: color-mix(in srgb, var(--hue-community-a) 13%, var(--surface));
+    --hue-community-text: color-mix(in srgb, var(--hue-community-a) 78%, var(--ink));
+    --hue-community-glow: color-mix(in srgb, var(--hue-community-a) 45%, transparent);
+    --hue-profile-soft: color-mix(in srgb, var(--hue-profile-a) 13%, var(--surface));
+    --hue-profile-text: color-mix(in srgb, var(--hue-profile-a) 78%, var(--ink));
+    --hue-profile-glow: color-mix(in srgb, var(--hue-profile-a) 45%, transparent);
+    --hue-brand-soft: color-mix(in srgb, var(--hue-brand-a) 13%, var(--surface));
+    --hue-brand-text: color-mix(in srgb, var(--hue-brand-a) 78%, var(--ink));
+    --hue-brand-glow: color-mix(in srgb, var(--hue-brand-a) 45%, transparent);
+
+    /* "Current hue" slots. Components read these; .hue-* classes set them. Defaults are primary, so nothing
+       changes until a hue class is applied. */
+    --g-a: var(--primary);
+    --g-b: var(--hue-profile-b);
+    --g-soft: var(--primary-soft);
+    --g-text: var(--primary-text);
+    --g-glow: color-mix(in srgb, var(--primary) 40%, transparent);
+    --g-shine: .22;
+    --g-scrim: .34;
+
+    /* Gradients */
+    --grad-brand: linear-gradient(135deg, var(--hue-brand-a), var(--hue-brand-b));
+    --grad-primary: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 70%, var(--hue-profile-b)));
+    --grad-page:
+        radial-gradient(1100px 560px at 100% -10%, var(--hue-career-soft), transparent 60%),
+        radial-gradient(900px 500px at -10% 100%, var(--hue-roadmap-soft), transparent 60%);
+
+    /* Quiz answer scale, between green (5) and coral (1) */
+    --scale-4: #5DAE7B;
+    --scale-2: #E08A6E;
+
+    /* Elevation */
+    --shadow-sm: 0 1px 2px rgba(20, 40, 60, .06), 0 1px 1px rgba(20, 40, 60, .04);
+    --shadow-md: 0 2px 4px rgba(20, 40, 60, .05), 0 10px 24px -8px rgba(20, 40, 60, .12);
+    --shadow-lg: 0 4px 8px rgba(20, 40, 60, .06), 0 24px 48px -16px rgba(20, 40, 60, .18);
+    --shadow: var(--shadow-sm);
+    --shadow-overlay: var(--shadow-lg);
+
+    /* Spacing (8pt base) */
+    --sp-1: 4px;
+    --sp-2: 8px;
+    --sp-3: 12px;
+    --sp-4: 16px;
+    --sp-5: 24px;
+    --sp-6: 32px;
+    --sp-7: 48px;
+    --sp-8: 64px;
+
+    /* Radii */
+    --r-sm: 8px;
+    --r-md: 10px;
+    --r-lg: 14px;
+    --r-xl: 20px;
+    --r-pill: 999px;
+
+    /* Layout */
+    --sidebar-w: 240px;
+    --sidebar-w-collapsed: 68px;
+    --tabbar-h: 62px;
+    --topbar-h: 56px;
+    --content-max: 1200px;
+
+    /* Type */
+    --font-display: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-body: 'Mukta', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+    --dur-fast: 120ms;
+    --dur: 200ms;
+    --dur-slow: 900ms;
+}
+
+/* Dark: neutral greys for surfaces; hues keep their identity at lower lightness. */
+html[data-sapling-mode='dark'] {
+    color-scheme: dark;
+
+    --bg: #121212;
+    --surface: #1A1A1A;
+    --surface2: #232323;
+    --line: #2E2E2E;
+
+    --ink: #ECECEC;
+    --muted: #BDBDBD;
+    --subtle: #8A8A8A;
+
+    --primary: #8FC0E8;
+    --primary-hover: #A7D0F0;
+    --primary-soft: #1E2A33;
+    --primary-text: #A7D0F0;
+    --primary-on: #10171D;
+    --track: #2A2A2A;
+
+    --green: #4FB985;
+    --green-hover: #6BC79A;
+    --green-soft: #17291F;
+    --green-text: #93D8B1;
+    --green-on: #0B1F14;
+    --coral: #FF8264;
+    --coral-hover: #FF9A81;
+    --coral-soft: #2E1C17;
+    --coral-text: #FFB39F;
+    --coral-on: #2A120B;
+
+    --accent: #EDB268;
+    --accent-hover: #F3C186;
+    --accent-soft: #2C2519;
+    --accent-on: #241606;
+
+    --success: #6FBF8F;
+    --success-soft: #1B2620;
+    --success-text: #93D3AE;
+    --warn: #E0A93F;
+    --warn-soft: #29231A;
+    --warn-text: #E9C77E;
+    --error: #E4796A;
+    --error-soft: #2A1D1B;
+    --error-text: #F2A79B;
+    --info: #96A0E4;
+    --info-soft: #1F2030;
+    --info-text: #BCC3F2;
+
+    --viz-1: #8FC0E8;
+    --viz-2: #6FC3BF;
+    --viz-3: #C29BC9;
+    --viz-4: #D9A566;
+    --viz-5: #5B8FBF;
+
+    --brand-stem: #4FA97A;
+    --brand-leaf: #7FC49A;
+    --brand-seed: #FF8264;
+
+    --hue-career-a: #243F96;
+    --hue-career-b: #4A3BB0;
+    --hue-roadmap-a: #0F5C3F;
+    --hue-roadmap-b: #2A8A62;
+    --hue-opportunities-a: #9E3A22;
+    --hue-opportunities-b: #CF6A42;
+    --hue-resume-a: #0B5B60;
+    --hue-resume-b: #238C86;
+    --hue-interview-a: #4E2591;
+    --hue-interview-b: #8347B3;
+    --hue-govt-a: #7F4612;
+    --hue-govt-b: #B9782B;
+    --hue-community-a: #8F2549;
+    --hue-community-b: #C2557C;
+    --hue-profile-a: #183F6E;
+    --hue-profile-b: #2F7F9E;
+    --hue-brand-a: #0A4A2C;
+    --hue-brand-b: #25714F;
+
+    --g-shine: .10;
+    --g-scrim: .40;
+
+    --scale-4: #4E9A6C;
+    --scale-2: #C97A5E;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .45);
+    --shadow-md: 0 2px 4px rgba(0, 0, 0, .4), 0 10px 24px -8px rgba(0, 0, 0, .55);
+    --shadow-lg: 0 4px 8px rgba(0, 0, 0, .45), 0 24px 48px -16px rgba(0, 0, 0, .65);
+}

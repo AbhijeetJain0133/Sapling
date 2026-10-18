@@ -1,0 +1,12 @@
+@namespace Sapling.Shared.Components
+@using Microsoft.Extensions.Configuration
+@inject IConfiguration Config
+
+<div class="cf-turnstile" data-sitekey="@SiteKey" data-theme="light"></div>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+
+@code {
+    // Falls back to Cloudflare's always-pass test key so local dev works without secrets configured.
+    // appsettings.json ships the key as "", so an empty value must fall back too, not only a missing one.
+    private string SiteKey => string.IsNullOrWhiteSpace(Config["Turnstile:SiteKey"]) ? "1x00000000000000000000AA" : Config["Turnstile:SiteKey"]!;
+}

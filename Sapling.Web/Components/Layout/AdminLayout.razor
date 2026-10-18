@@ -1,0 +1,83 @@
+@namespace Sapling.Web.Components.Layout
+@inherits LayoutComponentBase
+@inject NavigationManager Nav
+
+<div class="shell-desktop shell-staff">
+    <nav class="sidebar">
+        <div class="sidebar-brand">
+            <SapLogo Size="30" />
+        </div>
+
+        <div class="sidebar-nav">
+            @foreach (var (label, route, icon, exact, hue) in _nav)
+            {
+                <NavLink class="@($"nav-item hue-{hue}")" href="@route" Match="@(exact ? NavLinkMatch.All : NavLinkMatch.Prefix)">
+                    <SapIcon Name="@icon" Size="18" />
+                    <span>@label</span>
+                </NavLink>
+            }
+        </div>
+
+        <div class="sidebar-foot">
+            <div class="nav-item" style="cursor:default">
+                <span class="avatar" style="width:26px;height:26px;font-size:11px">@Initials</span>
+                <span class="stack grow" style="gap:0">
+                    <span style="font-size:13px">@DisplayName</span>
+                    <span class="t-caption t-subtle" style="font-weight:400">Administrator</span>
+                </span>
+            </div>
+            <a class="nav-item" href="/signout" data-enhance-nav="false">
+                <SapIcon Name="log-out" Size="18" />
+                <span>Sign out</span>
+            </a>
+        </div>
+    </nav>
+
+    <div class="shell-main">
+        <main class="page">@Body</main>
+    </div>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Something went wrong.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">&times;</span>
+</div>
+
+@code {
+    private static readonly (string Label, string Route, string Icon, bool Exact, string Hue)[] _nav =
+    [
+        ("Dashboard", "/admin", "home", true, "brand"),
+        ("Students", "/admin/students", "users", false, "career"),
+        ("Institutes", "/admin/institutes", "building", false, "community"),
+        ("Admins", "/admin/admins", "shield-check", false, "interview"),
+    ];
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    private string DisplayName { get; set; } = "Admin";
+
+    private string Initials => string.Concat(
+        DisplayName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState is null)
+        {
+            return;
+        }
+
+        var user = (await AuthState).User;
+        if (user.FindFirst(AppUserClaimsPrincipalFactory.AccountTypeClaim)?.Value != AccountTypes.Admin)
+        {
+            Nav.NavigateTo("/home", replace: true);
+            return;
+        }
+
+        var name = user.FindFirst("full_name")?.Value ?? user.Identity?.Name;
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            DisplayName = name.Contains('@') ? name[..name.IndexOf('@')] : name;
+        }
+    }
+}

@@ -1,0 +1,152 @@
+@namespace Sapling.Shared.Components
+@typeparam TItem
+@implements IAsyncDisposable
+@inject IJSRuntime Js
+
+<div class="carousel @Class">
+    <div class="carousel-track" @ref="_track">
+        @if (Items.Count > 1)
+        {
+            <div class="carousel-slide carousel-clone-prev" aria-hidden="true">@ItemTemplate(Items[^1])</div>
+        }
+        @foreach (var item in Items)
+        {
+            <div class="carousel-slide">@ItemTemplate(item)</div>
+        }
+        @if (Items.Count > 1)
+        {
+            <div class="carousel-slide carousel-clone-next" aria-hidden="true">@ItemTemplate(Items[0])</div>
+        }
+    </div>
+
+    @if (Items.Count > 1)
+    {
+        @if (ShowArrows)
+        {
+            <button type="button" class="btn btn-secondary btn-icon btn-sm carousel-arrow prev"
+                    @onclick="Prev" aria-label="Previous">
+                <SapIcon Name="chevron-left" Size="16" />
+            </button>
+            <button type="button" class="btn btn-secondary btn-icon btn-sm carousel-arrow next"
+                    @onclick="Next" aria-label="Next">
+                <SapIcon Name="chevron-right" Size="16" />
+            </button>
+        }
+
+        <div class="carousel-dots">
+            @for (var i = 0; i < Items.Count; i++)
+            {
+                var target = i;
+                <button type="button" class="carousel-dot @(target == _index ? "on" : null)"
+                        @onclick="() => GoTo(target)" aria-label="@($"Go to slide {target + 1}")"></button>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<TItem> Items { get; set; } = [];
+
+    [Parameter, EditorRequired] public RenderFragment<TItem> ItemTemplate { get; set; } = default!;
+
+    [Parameter] public bool ShowArrows { get; set; }
+
+    [Parameter] public int IntervalMs { get; set; } = 5000;
+
+    [Parameter] public string? Class { get; set; }
+
+    private ElementReference _track;
+    private DotNetObjectReference<SapCarousel<TItem>>? _ref;
+    private CancellationTokenSource? _cts;
+    private int _index;
+    private bool _paused;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || Items.Count < 2)
+        {
+            return;
+        }
+
+        _ref = DotNetObjectReference.Create(this);
+        await Js.InvokeVoidAsync("sapling.carousel.init", _track, _ref, Items.Count);
+        _cts = new CancellationTokenSource();
+        _ = AutoAdvanceAsync(_cts.Token);
+    }
+
+    private async Task AutoAdvanceAsync(CancellationToken token)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(IntervalMs));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                if (!_paused)
+                {
+                    await InvokeAsync(Next);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Component disposed.
+        }
+    }
+
+    private async Task Next()
+    {
+        if (Items.Count <= 1) return;
+        _index = (_index + 1) % Items.Count;
+        StateHasChanged();
+        await Js.InvokeVoidAsync("sapling.carousel.next", _track);
+    }
+
+    private async Task Prev()
+    {
+        if (Items.Count <= 1) return;
+        _index = ((_index - 1) % Items.Count + Items.Count) % Items.Count;
+        StateHasChanged();
+        await Js.InvokeVoidAsync("sapling.carousel.prev", _track);
+    }
+
+    private async Task GoTo(int target)
+    {
+        if (Items.Count <= 1) return;
+        _index = ((target % Items.Count) + Items.Count) % Items.Count;
+        StateHasChanged();
+        await Js.InvokeVoidAsync("sapling.carousel.goTo", _track, _index);
+    }
+
+    [JSInvokable]
+    public void OnScrolled(int index)
+    {
+        if (index == _index || index < 0 || index >= Items.Count)
+        {
+            return;
+        }
+
+        _index = index;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnInteraction(bool paused) => _paused = paused;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_cts is not null)
+        {
+            await _cts.CancelAsync();
+            _cts.Dispose();
+        }
+
+        try
+        {
+            await Js.InvokeVoidAsync("sapling.carousel.destroy", _track);
+        }
+        catch (JSDisconnectedException) { }
+        catch (InvalidOperationException) { }
+
+        _ref?.Dispose();
+    }
+}

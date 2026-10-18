@@ -1,0 +1,111 @@
+@page "/institute/signin"
+@namespace Sapling.Web.Components.Pages.Institute
+@layout InstituteAuthLayout
+@attribute [AllowAnonymous]
+@attribute [ExcludeFromInteractiveRouting]
+@using Microsoft.AspNetCore.Components.Endpoints
+@using Microsoft.AspNetCore.Identity
+@using Sapling.Web.Data
+@using Sapling.Web.Services
+@inject SignInManager<AppUser> SignInManager
+@inject UserManager<AppUser> UserManager
+@inject NavigationManager Nav
+@inject ITurnstileService Turnstile
+
+<PageTitle>Institute sign in · Sapling</PageTitle>
+
+<div class="stack g-5">
+    <div class="stack g-1">
+        <h3>Institute sign in</h3>
+        <span class="t-small t-subtle">For placement cells, departments and college administrators.</span>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="badge badge-error" role="alert" style="padding:10px 14px;border-radius:var(--r-md);white-space:normal">
+            <SapIcon Name="alert-circle" Size="15" />
+            @_error
+        </div>
+    }
+
+    <EditForm Model="Input" method="post" OnValidSubmit="SubmitAsync" FormName="institute-signin" Enhance="false" class="stack g-4">
+        <DataAnnotationsValidator />
+
+        <div class="field">
+            <label for="email">Work email</label>
+            <InputText id="email" class="input" @bind-Value="Input.Email" autocomplete="username" placeholder="placement@college.ac.in" />
+            <ValidationMessage For="() => Input.Email" class="field-error" />
+        </div>
+
+        <div class="field">
+            <div class="row between g-2">
+                <label for="password">Password</label>
+                <a class="t-small" href="/forgot-password">Forgot password?</a>
+            </div>
+            <InputText id="password" type="password" class="input" @bind-Value="Input.Password" autocomplete="current-password" />
+            <ValidationMessage For="() => Input.Password" class="field-error" />
+        </div>
+
+        <SapTurnstile />
+
+        <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+    </EditForm>
+
+    <div class="stack g-2" style="text-align:center">
+        <span class="t-small t-muted">No institute account yet? <a href="/institute/register">Register your college</a></span>    </div>
+</div>
+
+@code {
+    [SupplyParameterFromForm] private SignInInput Input { get; set; } = default!;
+
+    [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
+
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
+    private string? _error;
+
+    protected override void OnInitialized() => Input ??= new();
+
+    private async Task SubmitAsync()
+    {
+        var token = HttpContext?.Request.Form["cf-turnstile-response"].ToString();
+        if (!await Turnstile.VerifyAsync(token, HttpContext?.Connection.RemoteIpAddress?.ToString()))
+        {
+            _error = "We could not verify you are human. Please try again.";
+            return;
+        }
+
+        Input.Email = AccountFlowService.Clean(Input.Email);
+
+        // Checked before signing in so a student account never lands in the institute shell.
+        var user = await UserManager.FindByEmailAsync(Input.Email);
+        if (user is not null && user.AccountType != AccountTypes.Institution)
+        {
+            _error = "That is a student account. Use the student sign-in instead.";
+            return;
+        }
+
+        var result = await SignInManager.PasswordSignInAsync(Input.Email, Input.Password, isPersistent: true, lockoutOnFailure: false);
+        if (!result.Succeeded)
+        {
+            _error = result.IsLockedOut && user is not null && AccountStatus.IsDeactivated(user)
+                ? "This account has been deactivated. Contact your administrator."
+                : result.IsLockedOut
+                    ? "Too many attempts. Try again in a few minutes."
+                    : "That email and password combination did not match.";
+            return;
+        }
+
+        Nav.NavigateTo(string.IsNullOrWhiteSpace(ReturnUrl) ? "/institute" : ReturnUrl);
+    }
+
+    private sealed class SignInInput
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Enter your email.")]
+        [System.ComponentModel.DataAnnotations.EmailAddress(ErrorMessage = "That does not look like an email address.")]
+        public string Email { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Enter your password.")]
+        public string Password { get; set; } = "";
+    }
+}

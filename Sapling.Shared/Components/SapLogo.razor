@@ -1,0 +1,21 @@
+@namespace Sapling.Shared.Components
+
+<a class="logo" href="/home">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="280.7 316 752 752" width="@Size" height="@Size" role="img" aria-label="Sapling">
+        <rect x="438.97" y="565.28" width="137.93" height="470.69" rx="68.97" ry="68.97" fill="var(--brand-stem)" />
+        <path d="M512.49,680.17s122.65-392.5,376.72-331.97c0,0-37.11,330.13-376.72,331.97Z" fill="var(--brand-leaf)" />
+        <circle cx="507.34" cy="543.66" r="83.09" fill="var(--brand-seed)" />
+    </svg>
+    @if (ShowWord)
+    {
+        <span class="logo-word" style="font-size:@(WordSize)px">Sapling</span>
+    }
+</a>
+
+@code {
+    [Parameter] public int Size { get; set; } = 32;
+
+    [Parameter] public bool ShowWord { get; set; } = true;
+
+    [Parameter] public int WordSize { get; set; } = 20;
+}

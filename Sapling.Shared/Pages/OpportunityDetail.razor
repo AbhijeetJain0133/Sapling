@@ -1,0 +1,115 @@
+@page "/opportunities/{Id:int}"
+@namespace Sapling.Shared.Pages
+@inject IOpportunityService Opportunities
+
+<PageTitle>@(_item?.Title ?? "Opportunity") · Sapling</PageTitle>
+<RecordVisit Feature="@FeatureCatalog.Opportunities" />
+
+@if (_item is null)
+{
+    <div class="card"><div class="skeleton" style="height:200px"></div></div>
+}
+else
+{
+    <div class="stack g-5" style="max-width:860px">
+        <a class="btn btn-ghost btn-sm" href="/opportunities" style="align-self:flex-start">
+            <SapIcon Name="chevron-left" Size="15" />
+            All opportunities
+        </a>
+
+        <div class="card">
+            <div class="row-top between g-5 wrap">
+                <div class="stack g-3 grow" style="min-width:260px">
+                    <div class="row g-2 wrap">
+                        <SapBadge Tone="neutral">@_item.Kind</SapBadge>
+                        <SapBadge Tone="neutral" Icon="map-pin">@_item.Location</SapBadge>
+                        @if (_item.Remote)
+                        {
+                            <SapBadge Tone="info" Icon="zap">Remote</SapBadge>
+                        }
+                        <SapBadge Tone="neutral" Icon="calendar">Closes @_item.ClosesOn.ToString("d MMM")</SapBadge>
+                    </div>
+                    <h1 style="font-size:28px;line-height:34px">@_item.Title</h1>
+                    <span class="t-muted">@_item.Company &middot; @_item.Stipend</span>
+                    <p class="t-small t-muted">@_item.Description</p>
+                </div>
+
+                <ScoreRing Value="_item.MatchScore" Size="120" Caption="two-way match" Label="Match" Hue="@Hues.ForKey(_item.Company)" />
+            </div>
+        </div>
+
+        <div class="grid grid-2">
+            <SapCard Title="Why you were matched">
+                <Header><WhyThisPopover Reasons="_item.Reasons" /></Header>
+                <ChildContent>
+                    <ul class="stack g-2" style="margin:0;padding-left:18px">
+                        @foreach (var reason in _item.Reasons)
+                        {
+                            <li class="t-small">@reason</li>
+                        }
+                    </ul>
+                </ChildContent>
+            </SapCard>
+
+            <SapCard Title="Readiness" Subtitle="@_item.Readiness">
+                <ChildContent>
+                    @if (_item.MissingSkills.Count == 0)
+                    {
+                        <div class="row-top g-3">
+                            <span class="t-success"><SapIcon Name="check-circle" Size="20" /></span>
+                            <span class="t-small">You meet every stated requirement. Apply, then prepare for the assessment round.</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="stack g-3">
+                            <span class="t-small t-muted">Close these and your match score rises:</span>
+                            <div class="row g-2 wrap">
+                                @foreach (var skill in _item.MissingSkills)
+                                {
+                                    <span class="chip chip-progress">
+                                        <SapIcon Name="target" Size="13" />
+                                        @skill
+                                    </span>
+                                }
+                            </div>
+                            <a class="btn btn-secondary btn-sm" href="/roadmap" style="align-self:flex-start">Add to roadmap</a>
+                        </div>
+                    }
+                </ChildContent>
+            </SapCard>
+        </div>
+
+        <div class="card">
+            <div class="row between g-3 wrap">
+                <div class="stack" style="gap:2px">
+                    <span style="font-weight:600">@(_item.ApplicationStatus is null ? "Ready to apply?" : $"Status: {_item.ApplicationStatus}")</span>
+                    <span class="t-caption t-subtle">Check your resume's score first, and ask the AI to fit it to this role.</span>
+                </div>
+                <div class="row g-2 wrap">
+                    <a class="btn btn-secondary" href="/resume">Open my resumes</a>
+                    <button type="button" class="btn btn-primary" @onclick="ApplyAsync"
+                            disabled="@(_busy || _item.ApplicationStatus is not null)">
+                        @(_item.ApplicationStatus is null ? "Apply now" : "Applied")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private OpportunityDto? _item;
+    private bool _busy;
+
+    protected override async Task OnParametersSetAsync() => _item = await Opportunities.GetAsync(Id);
+
+    private async Task ApplyAsync()
+    {
+        _busy = true;
+        _item = await Opportunities.ApplyAsync(Id);
+        _busy = false;
+    }
+}

@@ -1,0 +1,206 @@
+@namespace Sapling.Shared.Components
+@inject ICommunityService Community
+
+<article class="card post-card stack g-4">
+    <header class="row-top g-3 wrap post-head">
+        @if (!string.IsNullOrEmpty(Post.Author.LogoDataUrl))
+        {
+            <img class="inst-tile" src="@Post.Author.LogoDataUrl" alt="" style="object-fit:cover" />
+        }
+        else
+        {
+            <InstitutionTile InstitutionId="Post.Author.Id" />
+        }
+        <div class="stack grow post-head-text" style="gap:0">
+            <span class="post-author">
+                <span>@Post.Author.Name</span>
+                @if (Post.Author.Verified)
+                {
+                    <VerifiedTick />
+                }
+            </span>
+            <span class="t-caption t-subtle">@Post.Author.City &middot; @CommunityDisplay.Ago(Post.PostedAt)</span>
+        </div>
+        @if (Post.IsPinned)
+        {
+            <SapBadge Tone="primary" Icon="pin">Pinned</SapBadge>
+        }
+        <SapBadge Tone="solid" Class="@KindHue" Icon="@CommunityDisplay.Icon(Post.Kind)">@Post.Kind</SapBadge>
+    </header>
+
+    @if (Full)
+    {
+        <div class="stack g-4">
+            <h2 class="t-h3">@Post.Title</h2>
+            <div class="post-media post-media-full @MediaClass">
+                @if (HasImage)
+                {
+                    <img src="@Post.ImageUrl" alt="" loading="lazy" />
+                }
+                else
+                {
+                    <SapArt Name="community" />
+                }
+            </div>
+            <p class="t-body post-body">@Post.Body</p>
+        </div>
+    }
+    else
+    {
+        <a class="post-link post-main" href="@Href">
+            <span class="post-text stack g-2">
+                <span class="post-title">@Post.Title</span>
+                <span class="t-small t-muted post-body post-body-clamp">@Post.Body</span>
+            </span>
+            <span class="post-media @MediaClass">
+                @if (HasImage)
+                {
+                    <img src="@Post.ImageUrl" alt="" loading="lazy" />
+                }
+                else
+                {
+                    <SapArt Name="community" />
+                }
+            </span>
+        </a>
+    }
+
+    @if (Post.StartsAt is not null || !string.IsNullOrEmpty(Post.Venue))
+    {
+        <div class="row g-4 wrap t-small t-muted">
+            @if (Post.StartsAt is { } starts)
+            {
+                <span class="row g-1"><SapIcon Name="calendar" Size="15" /> @CommunityDisplay.When(starts)</span>
+            }
+            @if (!string.IsNullOrEmpty(Post.Venue))
+            {
+                <span class="row g-1"><SapIcon Name="@(Post.Venue == "Online" ? "monitor" : "map-pin")" Size="15" /> @Post.Venue</span>
+            }
+        </div>
+    }
+
+    @if (Post.Tags.Count > 0)
+    {
+        <div class="row g-2 wrap">
+            @foreach (var tag in Post.Tags)
+            {
+                <span class="chip post-tag">@tag</span>
+            }
+        </div>
+    }
+
+    <footer class="post-actions">
+        <button type="button" class="vote-btn" aria-pressed="@(Post.HasUpvoted ? "true" : "false")"
+                aria-label="@(Post.HasUpvoted ? "Remove upvote" : "Upvote")" @onclick="ToggleUpvoteAsync" disabled="@_busy">
+            <SapIcon Name="arrow-up" Size="16" Stroke="2.2" />
+            <span class="t-num">@Post.Upvotes</span>
+        </button>
+        @if (Full)
+        {
+            <span class="row g-1 t-small t-muted" style="padding-inline:var(--sp-2)">
+                <SapIcon Name="message" Size="16" /> @CommentLabel
+            </span>
+        }
+        else
+        {
+            <a class="btn btn-ghost btn-sm" href="@Href" aria-label="@CommentLabel">
+                <SapIcon Name="message" Size="16" /> @Post.CommentCount
+            </a>
+        }
+        <span class="grow"></span>
+        <button type="button" class="btn btn-ghost btn-sm save-btn" aria-pressed="@(Post.IsSaved ? "true" : "false")"
+                title="@(Post.IsSaved ? "Remove from saved" : "Save for later")"
+                aria-label="@(Post.IsSaved ? "Remove from saved" : "Save for later")"
+                @onclick="ToggleSavedAsync" disabled="@_busy">
+            <SapIcon Name="bookmark" Size="16" Stroke="2" />
+            @if (Full)
+            {
+                <span>@(Post.IsSaved ? "Saved" : "Save")</span>
+            }
+        </button>
+        @if (!string.IsNullOrEmpty(Post.CtaUrl))
+        {
+            <a class="btn btn-secondary btn-sm" href="@Post.CtaUrl" target="_blank" rel="noopener noreferrer">
+                @(Post.CtaLabel ?? "Learn more")
+                <SapIcon Name="external-link" Size="14" />
+            </a>
+        }
+        else if (!Full)
+        {
+            <a class="btn btn-ghost btn-sm" href="@Href">
+                Details <SapIcon Name="chevron-right" Size="15" />
+            </a>
+        }
+    </footer>
+</article>
+
+@code {
+    [Parameter, EditorRequired] public CommunityPostDto Post { get; set; } = default!;
+
+    private bool HasImage => !string.IsNullOrWhiteSpace(Post.ImageUrl);
+
+    private string KindHue => $"hue-{CommunityDisplay.Hue(Post.Kind)}";
+
+    // Posts without artwork get a scene on the kind's gradient instead of a stock image.
+    private string? MediaClass => HasImage ? null : $"post-media-art {KindHue}";
+
+    [Parameter] public EventCallback<CommunityPostDto> PostChanged { get; set; }
+
+    /// <summary>The post page shows the whole body; the feed clamps it and links through.</summary>
+    [Parameter] public bool Full { get; set; }
+
+    private bool _busy;
+
+    private string Href => $"/community/{Post.Id}";
+
+    private string CommentLabel => Post.CommentCount == 1 ? "1 comment" : $"{Post.CommentCount} comments";
+
+    private async Task ToggleUpvoteAsync()
+    {
+        var original = Post;
+        var want = !original.HasUpvoted;
+
+        // Optimistic, so the tap feels instant over a slow connection.
+        _busy = true;
+        await PostChanged.InvokeAsync(Post = original with { HasUpvoted = want, Upvotes = original.Upvotes + (want ? 1 : -1) });
+
+        try
+        {
+            Post = await Community.SetUpvoteAsync(original.Id, want);
+        }
+        catch (Exception)
+        {
+            Post = original;
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        await PostChanged.InvokeAsync(Post);
+    }
+
+    private async Task ToggleSavedAsync()
+    {
+        var original = Post;
+        var want = !original.IsSaved;
+
+        _busy = true;
+        await PostChanged.InvokeAsync(Post = original with { IsSaved = want });
+
+        try
+        {
+            Post = await Community.SetSavedAsync(original.Id, want);
+        }
+        catch (Exception)
+        {
+            Post = original;
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        await PostChanged.InvokeAsync(Post);
+    }
+}

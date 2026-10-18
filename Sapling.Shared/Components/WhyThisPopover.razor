@@ -1,0 +1,45 @@
+@namespace Sapling.Shared.Components
+
+<span style="position:relative;display:inline-flex">
+    <button type="button" class="btn btn-ghost btn-icon btn-sm" @onclick="Toggle"
+            aria-expanded="@_open" aria-label="Why this?">
+        <SapIcon Name="info" Size="16" />
+    </button>
+
+    @if (_open)
+    {
+        <div class="pop" style="top:calc(100% + 6px);right:0">
+            <div class="row between g-2" style="margin-bottom:var(--sp-2)">
+                <span style="font-weight:700;font-size:14px;font-family:var(--font-display)">@Title</span>
+                <button type="button" class="btn btn-ghost btn-icon btn-sm" @onclick="Close" aria-label="Close">
+                    <SapIcon Name="x" Size="14" />
+                </button>
+            </div>
+            <ul class="stack g-2" style="margin:0;padding-left:18px">
+                @foreach (var reason in Reasons)
+                {
+                    <li class="t-small" style="color:var(--primary-text)">@reason</li>
+                }
+            </ul>
+            <div class="divider"></div>
+            <div class="row between g-2">
+                <span class="t-caption t-subtle">@AsOf</span>
+                <a href="#" class="t-caption" @onclick:preventDefault @onclick="Close">Not right? Tell us</a>
+            </div>
+        </div>
+    }
+</span>
+
+@code {
+    [Parameter] public string Title { get; set; } = "Why this?";
+
+    [Parameter, EditorRequired] public IReadOnlyList<string> Reasons { get; set; } = [];
+
+    [Parameter] public string AsOf { get; set; } = $"As of {DateTime.Now:d MMM yyyy}";
+
+    private bool _open;
+
+    private void Toggle() => _open = !_open;
+
+    private void Close() => _open = false;
+}

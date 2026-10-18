@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sapling's own colours; the template's purple showed up in the status bar. -->
+    <color name="colorPrimary">#006838</color>
+    <color name="colorPrimaryDark">#FFFFFF</color>
+    <color name="colorAccent">#FF6B4A</color>
+</resources>

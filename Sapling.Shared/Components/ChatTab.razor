@@ -1,0 +1,29 @@
+@namespace Sapling.Shared.Components
+@implements IDisposable
+@inject AssistantChat Chat
+
+@* The centred Sapling AI button in the phone tab bar. It opens the chat full screen and closes it again. *@
+<button type="button" class="tab tab-ai @(Chat.IsOpen ? "active" : null)" aria-label="Sapling AI" title="Sapling AI"
+        aria-pressed="@(Chat.IsOpen ? "true" : "false")" @onclick="Toggle">
+    <span class="tab-ai-disc"><SapAiMark Size="28" OnDark /></span>
+</button>
+
+@code {
+    protected override void OnInitialized() => Chat.Changed += OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    private void Toggle()
+    {
+        if (Chat.IsOpen)
+        {
+            Chat.Close();
+        }
+        else
+        {
+            Chat.Open();
+        }
+    }
+
+    public void Dispose() => Chat.Changed -= OnChanged;
+}

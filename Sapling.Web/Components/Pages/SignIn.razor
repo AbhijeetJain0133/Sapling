@@ -1,0 +1,132 @@
+@page "/signin"
+@namespace Sapling.Web.Components.Pages
+@layout AuthLayout
+@attribute [AllowAnonymous]
+@attribute [ExcludeFromInteractiveRouting]
+@using Microsoft.AspNetCore.Components.Endpoints
+@using Microsoft.AspNetCore.Identity
+@using Sapling.Web.Data
+@using Sapling.Web.Services
+@inject SignInManager<AppUser> SignInManager
+@inject UserManager<AppUser> UserManager
+@inject NavigationManager Nav
+@inject ITurnstileService Turnstile
+
+<PageTitle>Sign in · Sapling</PageTitle>
+
+<div class="stack g-5">
+    <div class="stack g-1">
+        <h3>Sign in</h3>
+        <span class="t-small t-subtle">Pick up where you left off.</span>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="badge badge-error" style="padding:10px 14px;border-radius:var(--r-md)">
+            <SapIcon Name="alert-circle" Size="15" />
+            @_error
+        </div>
+    }
+
+    <EditForm Model="Input" method="post" OnValidSubmit="SubmitAsync" FormName="signin" Enhance="false" class="stack g-4">
+        <DataAnnotationsValidator />
+
+        <div class="field">
+            <label for="email">Email</label>
+            <InputText id="email" class="input" @bind-Value="Input.Email" autocomplete="username" placeholder="you@college.ac.in" />
+            <ValidationMessage For="() => Input.Email" class="field-error" />
+        </div>
+
+        <div class="field">
+            <div class="row between g-2">
+                <label for="password">Password</label>
+                <a class="t-small" href="/forgot-password">Forgot password?</a>
+            </div>
+            <InputText id="password" type="password" class="input" @bind-Value="Input.Password" autocomplete="current-password" />
+            <ValidationMessage For="() => Input.Password" class="field-error" />
+        </div>
+
+        <SapTurnstile />
+
+        <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+    </EditForm>
+
+    <div class="row g-3">
+        <span class="grow divider" style="margin:0"></span>
+        <span class="t-caption t-subtle">or</span>
+        <span class="grow divider" style="margin:0"></span>
+    </div>
+
+    <GoogleSignInButton ReturnUrl="@ReturnUrl" />
+
+    <div class="stack g-2" style="text-align:center">
+        <span class="t-small t-muted">New here? <a href="/register">Create an account</a></span>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromForm] private SignInInput Input { get; set; } = default!;
+
+    [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery(Name = "error")] private string? ExternalError { get; set; }
+
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        Input ??= new();
+        if (!string.IsNullOrEmpty(ExternalError))
+        {
+            _error = ExternalSignInErrors.Message(ExternalError);
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        var token = HttpContext?.Request.Form["cf-turnstile-response"].ToString();
+        if (!await Turnstile.VerifyAsync(token, HttpContext?.Connection.RemoteIpAddress?.ToString()))
+        {
+            _error = "We could not verify you are human. Please try again.";
+            return;
+        }
+
+        // Strip any whitespace from email (e.g. accidental spaces from copy-paste)
+        Input.Email = Input.Email?.Replace(" ", "").Trim() ?? "";
+
+        var result = await SignInManager.PasswordSignInAsync(Input.Email, Input.Password, isPersistent: true, lockoutOnFailure: false);
+        if (!result.Succeeded)
+        {
+            var user = await UserManager.FindByEmailAsync(Input.Email);
+            _error = result.IsLockedOut && user is not null && AccountStatus.IsDeactivated(user)
+                ? "This account has been deactivated. Contact your administrator."
+                : result.IsLockedOut
+                    ? "Too many attempts. Try again in a few minutes."
+                    : "That email and password combination did not match.";
+            return;
+        }
+
+        // Institutes and admins have their own shells, and no student profile to land on.
+        var account = await UserManager.FindByEmailAsync(Input.Email);
+        var shell = account?.AccountType switch
+        {
+            AccountTypes.Institution => "/institute",
+            AccountTypes.Admin => "/admin",
+            _ => null,
+        };
+
+        Nav.NavigateTo(shell ?? (string.IsNullOrWhiteSpace(ReturnUrl) ? "/home" : ReturnUrl));
+    }
+
+    private sealed class SignInInput
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Enter your email.")]
+        [System.ComponentModel.DataAnnotations.EmailAddress(ErrorMessage = "That does not look like an email address.")]
+        public string Email { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Enter your password.")]
+        public string Password { get; set; } = "";
+    }
+}

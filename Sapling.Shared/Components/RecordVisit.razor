@@ -1,0 +1,14 @@
+@namespace Sapling.Shared.Components
+@inject IRecentFeaturesService Recents
+
+@code {
+    [Parameter, EditorRequired] public string Feature { get; set; } = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Recents.RecordAsync(Feature);
+        }
+    }
+}

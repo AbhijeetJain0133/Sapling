@@ -1,0 +1,55 @@
+@namespace Sapling.Shared.Components
+
+@if (Href is not null)
+{
+    <a class="card @Class" href="@Href">@Render()</a>
+}
+else
+{
+    <div class="card @Class">@Render()</div>
+}
+
+@code {
+    [Parameter] public string? Title { get; set; }
+
+    [Parameter] public string? Subtitle { get; set; }
+
+    [Parameter] public string? Href { get; set; }
+
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter] public RenderFragment? Header { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    [Parameter] public RenderFragment? Footer { get; set; }
+
+    private RenderFragment Render() => __builder =>
+    {
+        <div class="stack g-4">
+            @if (Header is not null || Title is not null)
+            {
+                <div class="row between g-3">
+                    <div class="stack" style="gap:2px">
+                        @if (Title is not null)
+                        {
+                            <h4>@Title</h4>
+                        }
+                        @if (Subtitle is not null)
+                        {
+                            <span class="t-small t-subtle">@Subtitle</span>
+                        }
+                    </div>
+                    @Header
+                </div>
+            }
+            @ChildContent
+            @if (Footer is not null)
+            {
+                <div class="row between g-3 wrap" style="padding-top:var(--sp-3);border-top:1px solid var(--line)">
+                    @Footer
+                </div>
+            }
+        </div>
+    };
+}

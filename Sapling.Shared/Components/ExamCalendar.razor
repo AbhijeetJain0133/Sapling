@@ -1,0 +1,140 @@
+@namespace Sapling.Shared.Components
+
+@* Month grid with every exam day marked in that exam's hue; the selected exam's days are filled. *@
+<div class="card exam-cal stack g-4">
+    <div class="row between g-2">
+        <div class="stack" style="gap:0">
+            <span class="t-overline t-subtle">Exam calendar</span>
+            <h3 class="exam-cal-title">@Month.ToString("MMMM yyyy")</h3>
+        </div>
+        <div class="row g-1">
+            @if (!IsCurrentMonth)
+            {
+                <button type="button" class="btn btn-ghost btn-sm" @onclick="GoToToday">Today</button>
+            }
+            <button type="button" class="btn btn-ghost btn-icon" aria-label="Previous month" @onclick="() => MonthChanged.InvokeAsync(Month.AddMonths(-1))">
+                <SapIcon Name="chevron-left" Size="18" />
+            </button>
+            <button type="button" class="btn btn-ghost btn-icon" aria-label="Next month" @onclick="() => MonthChanged.InvokeAsync(Month.AddMonths(1))">
+                <SapIcon Name="chevron-right" Size="18" />
+            </button>
+        </div>
+    </div>
+
+    <div class="exam-cal-grid" role="grid" aria-label="@Month.ToString("MMMM yyyy")">
+        @foreach (var name in DayNames)
+        {
+            <span class="exam-cal-dow" role="columnheader">@name</span>
+        }
+
+        @foreach (var day in Days)
+        {
+            var onDay = ExamsOn(day);
+            var selected = onDay.FirstOrDefault(e => e.Id == SelectedId);
+            var classes = CellClass(day, onDay, selected);
+            if (onDay.Count > 0)
+            {
+                <button type="button" class="@classes" role="gridcell"
+                        aria-label="@($"{day:d MMMM}: {string.Join(", ", onDay.Select(e => e.Name))}")"
+                        @onclick="() => OnSelect.InvokeAsync(selected?.Id ?? onDay[0].Id)">
+                    <span class="exam-cal-num">@day.Day</span>
+                    <span class="exam-cal-dots">
+                        @foreach (var exam in onDay.Take(3))
+                        {
+                            <i class="hue-@HueOf(exam.Id)"></i>
+                        }
+                    </span>
+                </button>
+            }
+            else
+            {
+                <span class="@classes" role="gridcell">
+                    <span class="exam-cal-num">@day.Day</span>
+                </span>
+            }
+        }
+    </div>
+
+    @if (InMonth.Count > 0)
+    {
+        <div class="stack g-2 exam-cal-legend">
+            <span class="t-overline t-subtle">This month</span>
+            @foreach (var exam in InMonth)
+            {
+                <button type="button" class="@(exam.Id == SelectedId ? "exam-cal-key is-selected" : "exam-cal-key")"
+                        @onclick="() => OnSelect.InvokeAsync(exam.Id)">
+                    <i class="hue-@HueOf(exam.Id)"></i>
+                    <span class="grow">@exam.Name</span>
+                    <span class="t-caption t-subtle">@Range(exam)</span>
+                </button>
+            }
+        </div>
+    }
+    else
+    {
+        <span class="t-small t-subtle">No exams this month.</span>
+    }
+</div>
+
+@code {
+    private static readonly string[] DayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+    [Parameter, EditorRequired] public IReadOnlyList<GovtExamDto> Exams { get; set; } = [];
+
+    /// <summary>First day of the month on show.</summary>
+    [Parameter, EditorRequired] public DateOnly Month { get; set; }
+
+    [Parameter] public EventCallback<DateOnly> MonthChanged { get; set; }
+
+    [Parameter] public int? SelectedId { get; set; }
+
+    [Parameter] public EventCallback<int> OnSelect { get; set; }
+
+    /// <summary>Hue class key per exam id, shared with the list so a colour means the same exam in both.</summary>
+    [Parameter, EditorRequired] public IReadOnlyDictionary<int, string> HueMap { get; set; } = default!;
+
+    private static DateOnly Today => DateOnly.FromDateTime(DateTime.Today);
+
+    private bool IsCurrentMonth => Month.Year == Today.Year && Month.Month == Today.Month;
+
+    private DateOnly MonthEnd => Month.AddMonths(1).AddDays(-1);
+
+    private IReadOnlyList<GovtExamDto> InMonth => Exams
+        .Where(e => e.ExamOn is { } start && start <= MonthEnd && End(e) >= Month)
+        .ToList();
+
+    /// <summary>Six Monday-first weeks, padded with the neighbouring months' days.</summary>
+    private IEnumerable<DateOnly> Days
+    {
+        get
+        {
+            var lead = ((int)Month.DayOfWeek + 6) % 7;
+            var first = Month.AddDays(-lead);
+            return Enumerable.Range(0, 42).Select(first.AddDays);
+        }
+    }
+
+    private List<GovtExamDto> ExamsOn(DateOnly day) => Exams
+        .Where(e => e.ExamOn is { } start && day >= start && day <= End(e))
+        .ToList();
+
+    private string CellClass(DateOnly day, List<GovtExamDto> onDay, GovtExamDto? selected)
+    {
+        var classes = "exam-cal-day";
+        if (day.Month != Month.Month) classes += " is-out";
+        if (day == Today) classes += " is-today";
+        if (onDay.Count > 0) classes += $" has-exam hue-{HueOf((selected ?? onDay[0]).Id)}";
+        if (selected is not null) classes += " is-selected";
+        return classes;
+    }
+
+    private string HueOf(int id) => HueMap.TryGetValue(id, out var hue) ? hue : "govt";
+
+    private static DateOnly End(GovtExamDto e) => e.ExamEndsOn ?? e.ExamOn!.Value;
+
+    private static string Range(GovtExamDto e) => e.ExamEndsOn is { } end && end != e.ExamOn
+        ? $"{e.ExamOn:d MMM} – {end:d MMM}"
+        : $"{e.ExamOn:d MMM}";
+
+    private Task GoToToday() => MonthChanged.InvokeAsync(new DateOnly(Today.Year, Today.Month, 1));
+}

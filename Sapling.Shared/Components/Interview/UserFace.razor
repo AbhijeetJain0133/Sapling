@@ -1,0 +1,28 @@
+@namespace Sapling.Shared.Components
+
+@* The student's profile photo, or their initials when they haven't added one. *@
+@if (!string.IsNullOrWhiteSpace(PhotoUrl))
+{
+    <img class="user-face" src="@PhotoUrl" alt="" style="width:@(Size)px;height:@(Size)px" />
+}
+else
+{
+    <span class="avatar user-face" style="width:@(Size)px;height:@(Size)px;font-size:@(Size * 0.36)px">@Initials</span>
+}
+
+@code {
+    [Parameter] public string? Name { get; set; }
+
+    [Parameter] public string? PhotoUrl { get; set; }
+
+    [Parameter] public int Size { get; set; } = 48;
+
+    private string Initials
+    {
+        get
+        {
+            var parts = (Name ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length == 0 ? "You" : string.Concat(parts.Take(2).Select(p => char.ToUpperInvariant(p[0])));
+        }
+    }
+}

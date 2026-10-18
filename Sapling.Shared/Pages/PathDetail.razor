@@ -1,0 +1,111 @@
+@page "/paths/{Id:int}"
+@namespace Sapling.Shared.Pages
+@inject ICareerService Careers
+@inject NavigationManager Nav
+
+<PageTitle>@(_path?.Title ?? "Career path") · Sapling</PageTitle>
+<RecordVisit Feature="@FeatureCatalog.CareerPaths" />
+
+@if (_loaded && _path is null)
+{
+    <SapEmptyState Title="Role not found" Icon="compass" Art="not-found" Hue="career" Description="It may have been removed from the catalogue.">
+        <a class="btn btn-primary" href="/paths">All careers</a>
+    </SapEmptyState>
+}
+else if (_path is null)
+{
+    <div class="card stack g-3">
+        <div class="skeleton" style="height:28px;width:50%"></div>
+        <div class="skeleton" style="height:120px"></div>
+    </div>
+}
+else
+{
+    <div class="stack g-5">
+        <a class="btn btn-ghost btn-sm" href="/paths" style="align-self:flex-start">
+            <SapIcon Name="chevron-left" Size="15" />
+            All careers
+        </a>
+
+        <CareerDetails Path="_path">
+            <Actions>
+                @if (_path.IsTarget)
+                {
+                    <a class="btn btn-primary" href="/career">See your skills and gaps</a>
+                }
+                else
+                {
+                    <button type="button" class="btn btn-primary" @onclick="SetTargetAsync" disabled="@_saving">
+                        <SapIcon Name="target" Size="16" />
+                        @(_saving ? "Saving…" : "Make this my target")
+                    </button>
+                }
+            </Actions>
+            <Skills>
+                <SapCard Title="What this role asks for" Subtitle="Missing ones first, the most important at the top">
+                    <ChildContent>
+                        <div class="stack g-3">
+                            @foreach (var requirement in _path.Requirements)
+                            {
+                                <div class="row-top g-3">
+                                    <span style="color:@(requirement.Have ? "var(--success-text)" : "var(--subtle)");margin-top:2px">
+                                        <SapIcon Name="@(requirement.Have ? "check-circle" : "x")" Size="18" />
+                                    </span>
+                                    <div class="stack g-1 grow" style="min-width:0">
+                                        <span class="row g-2 wrap">
+                                            <span style="font-weight:600">@requirement.Skill</span>
+                                            <span class="t-caption t-subtle">@KindLabel(requirement.Kind) &middot; importance @requirement.Impact/10</span>
+                                        </span>
+                                        <span class="t-caption t-subtle">@requirement.Rationale</span>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </ChildContent>
+                    <Footer>
+                        <span class="t-caption t-subtle">Knowledge areas also count related skills, such as Data structures and DBMS towards Computers &amp; electronics.</span>
+                        <a class="btn btn-secondary btn-sm" href="/onboarding/skills">Update your skills</a>
+                    </Footer>
+                </SapCard>
+            </Skills>
+        </CareerDetails>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private CareerPathDto? _path;
+    private bool _loaded;
+    private bool _saving;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loaded = false;
+        _path = await Careers.GetPathAsync(Id);
+        _loaded = true;
+    }
+
+    private async Task SetTargetAsync()
+    {
+        _saving = true;
+        try
+        {
+            if (await Careers.SetTargetAsync(Id) is not null)
+            {
+                Nav.NavigateTo("/career");
+            }
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private static string KindLabel(string kind) => kind switch
+    {
+        "Technology" => "Technology",
+        "Knowledge" => "Knowledge area",
+        _ => "Core skill",
+    };
+}

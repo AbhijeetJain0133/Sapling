@@ -1,0 +1,270 @@
+@page "/interview"
+@namespace Sapling.Shared.Pages
+@inject IInterviewService Interviews
+@inject ICareerService Careers
+@inject IFormFactor FormFactor
+@inject IJSRuntime Js
+@inject NavigationManager Nav
+
+<PageTitle>Mock interview · Sapling</PageTitle>
+<RecordVisit Feature="@FeatureCatalog.Interview" />
+
+<div class="stack g-5" style="max-width:880px">
+    <div class="stack g-1">
+        <h1 style="font-size:28px;line-height:34px">Mock interview</h1>
+        <span class="t-muted">A spoken interview with an AI interviewer, then a detailed report on what you said and how you said it.</span>
+    </div>
+
+    @if (!IsWeb)
+    {
+        @* The interview is spoken and needs a desktop browser; the app is where the reports are read. *@
+        <SapEmptyState Title="Take your interview on the web" Icon="monitor" Art="interview" Hue="interview"
+                       Description="The mock interview is a spoken conversation, so it runs in Chrome or Edge on the Sapling website. Once you finish one, its report shows up here to read on your phone." />
+    }
+    else
+    {
+    <div class="card stack g-4 iv-stage">
+        <div class="g-card g-card-sm hue-interview iv-stage-head">
+            <SapArt Name="interview" Class="g-card-art" />
+            <div class="g-card-body stack" style="gap:4px">
+                <h3 style="font-size:19px;line-height:25px">Set up your interview</h3>
+                <span class="t-small">A spoken interview like a real one: introduction, your projects, technical and behavioural questions. Each question depends on how you answered the last.</span>
+            </div>
+        </div>
+
+        <div class="field">
+            <label for="iv-role">Interview for the role of</label>
+            @if (_paths is null)
+            {
+                <div class="skeleton" style="height:44px"></div>
+            }
+            else
+            {
+                <select id="iv-role" class="select" @bind="_roleId">
+                    @foreach (var path in _paths)
+                    {
+                        <option value="@path.Id">@path.Title@(path.IsTarget ? " (your target career)" : "")</option>
+                    }
+                </select>
+                <span class="field-hint">Starts on the career you chose in Career &amp; skills. Pick any other role to practise for it.</span>
+            }
+        </div>
+
+        <div class="field">
+            <label id="iv-length-label">Interview length</label>
+            <div class="row g-2 wrap" role="radiogroup" aria-labelledby="iv-length-label">
+                @foreach (var (minutes, name) in Lengths)
+                {
+                    var selected = _minutes == minutes;
+                    <button type="button" role="radio" aria-checked="@(selected ? "true" : "false")"
+                            class="chip chip-button @(selected ? "chip-selected" : null)" style="padding:8px 16px"
+                            @onclick="() => _minutes = minutes">
+                        <b>@name</b><span class="t-subtle">· ~@minutes min</span>
+                    </button>
+                }
+            </div>
+            <span class="field-hint">The interviewer may finish a little earlier or run a little longer, depending on how it goes.</span>
+        </div>
+
+        <div class="field">
+            <label for="iv-notes">Anything the interviewer should know? <span class="t-subtle" style="font-weight:400">(optional)</span></label>
+            <textarea id="iv-notes" class="textarea" maxlength="1000" style="min-height:96px" @bind="_instructions" @bind:event="oninput"
+                      placeholder="For example: focus on SQL and Python, go easy on me, it's my first interview, or ask about my internship at an e-commerce startup."></textarea>
+            <span class="field-hint">@_instructions.Length / 1000</span>
+        </div>
+
+        @if (_caps is { } caps && (!caps.Stt || !caps.SecureContext))
+        {
+            <div class="row-top g-2 t-small" style="color:var(--warn-text)">
+                <SapIcon Name="alert-triangle" Size="16" />
+                <span>
+                    @(caps.SecureContext
+                        ? "This browser can't turn your speech into text. The interview is spoken, so open Sapling in Google Chrome or Microsoft Edge."
+                        : "The microphone only works on a secure (https) address. Open Sapling over https to take the interview.")
+                </span>
+            </div>
+        }
+
+        @if (_error is not null)
+        {
+            <span class="field-error">@_error</span>
+        }
+
+        <div class="row between g-3 wrap">
+            <span class="t-caption t-subtle">Next: upload your resume (optional), then the interview starts.</span>
+            <button type="button" class="btn btn-primary" @onclick="ContinueAsync" disabled="@(_busy || _paths is null)">
+                Continue
+                <SapIcon Name="arrow-right" Size="15" />
+            </button>
+        </div>
+    </div>
+    }
+
+    <div class="stack g-3">
+        <span class="t-overline t-subtle">@(IsWeb ? "Interview history" : "Your interview reports")</span>
+        @if (_history is null)
+        {
+            <div class="skeleton" style="height:76px"></div>
+        }
+        else if (_history.Count == 0)
+        {
+            @if (IsWeb)
+            {
+                <SapEmptyState Title="No interviews yet" Icon="mic" Art="interview" Hue="interview"
+                               Description="Your first interview sets the baseline. Every report and transcript is kept here." />
+            }
+            else
+            {
+                <span class="card card-inset t-small t-muted">No reports yet. Your first one appears here after an interview on the website.</span>
+            }
+        }
+        else
+        {
+            <div class="stack g-2">
+                @foreach (var item in _history)
+                {
+                    <div class="card row between g-4 wrap" style="padding:var(--sp-4)">
+                        <a class="stack grow" style="gap:2px;min-width:200px;color:inherit" href="@LinkFor(item)">
+                            <span style="font-weight:600">@item.RoleTitle</span>
+                            <span class="t-caption t-subtle">@Describe(item)</span>
+                        </a>
+                        <div class="row g-3">
+                            @if (item.Status == "Complete" && item.OverallScore is { } score)
+                            {
+                                <a href="@LinkFor(item)" aria-label="Open report">
+                                    <ScoreRing Value="score" Size="56" Thickness="6" Animate="false" Label="Score" Hue="interview" />
+                                </a>
+                            }
+                            else
+                            {
+                                <SapBadge Tone="accent">@(item.Status == "Setup" ? "Not started" : "Not finished")</SapBadge>
+                            }
+                            <button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Delete interview"
+                                    @onclick="() => _pendingDelete = item">
+                                <SapIcon Name="trash" Size="16" />
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@if (_pendingDelete is { } pending)
+{
+    <SapModal Title="Delete this interview?" OnClose="() => _pendingDelete = null">
+        <ChildContent>
+            <span class="t-small t-muted">The report and transcript for @pending.RoleTitle on @pending.CreatedAt.ToLocalTime().ToString("d MMM") will be removed. This can't be undone.</span>
+        </ChildContent>
+        <Footer>
+            <button type="button" class="btn btn-ghost" @onclick="() => _pendingDelete = null">Cancel</button>
+            <button type="button" class="btn btn-danger" @onclick="DeleteAsync">Delete</button>
+        </Footer>
+    </SapModal>
+}
+
+@code {
+    private IReadOnlyList<CareerPathSummaryDto>? _paths;
+    private List<InterviewSummaryDto>? _history;
+    private int _roleId;
+    private int _minutes = 20;
+    private string _instructions = "";
+
+    private static readonly (int Minutes, string Name)[] Lengths = [(10, "Short"), (20, "Medium"), (30, "Long")];
+    private bool _busy;
+    private string? _error;
+    private VoiceCapabilities? _caps;
+    private InterviewSummaryDto? _pendingDelete;
+
+    private bool IsWeb => FormFactor.Platform == "Web";
+
+    private sealed record VoiceCapabilities(bool Tts, bool Stt, bool SecureContext);
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The role list is only for the setup form, which the app does not show.
+        if (IsWeb)
+        {
+            var paths = await Careers.GetPathsAsync(all: true);
+            var target = paths.FirstOrDefault(p => p.IsTarget);
+            _paths = target is null ? paths : [target, .. paths.Where(p => p.Id != target.Id).OrderBy(p => p.Title)];
+            _roleId = _paths.FirstOrDefault()?.Id ?? 0;
+        }
+
+        _history = [.. await Interviews.GetHistoryAsync()];
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && IsWeb)
+        {
+            try
+            {
+                _caps = await Js.InvokeAsync<VoiceCapabilities>("sapling.interview.capabilities");
+                StateHasChanged();
+            }
+            catch (JSException)
+            {
+                // Script not loaded; the live page reports it.
+            }
+        }
+    }
+
+    private async Task ContinueAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var title = _paths?.FirstOrDefault(p => p.Id == _roleId)?.Title ?? "";
+            var interview = await Interviews.CreateAsync(new CreateInterviewRequest(_roleId, title, _instructions, _minutes));
+            Nav.NavigateTo($"/interview/{interview.Id}/resume");
+        }
+        catch (InterviewProblemException e)
+        {
+            _error = e.Message;
+            _busy = false;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_pendingDelete is { } item)
+        {
+            await Interviews.DeleteAsync(item.Id);
+            _history?.Remove(item);
+        }
+
+        _pendingDelete = null;
+    }
+
+    private static string LinkFor(InterviewSummaryDto i) => i.Status switch
+    {
+        "Setup" => $"/interview/{i.Id}/resume",
+        "Ready" or "Live" => $"/interview/{i.Id}/live",
+        _ => $"/interview/{i.Id}/report",
+    };
+
+    private static string Describe(InterviewSummaryDto i)
+    {
+        var when = i.CreatedAt.ToLocalTime().ToString("d MMM yyyy, h:mm tt");
+        var parts = new List<string> { when };
+        if (i.ActiveSeconds >= 30)
+        {
+            parts.Add($"{Math.Max(1, (int)Math.Round(i.ActiveSeconds / 60.0))} min");
+        }
+        else
+        {
+            parts.Add($"~{i.TargetMinutes} min planned");
+        }
+
+        parts.Add(i.QuestionsAsked == 1 ? "1 question" : $"{i.QuestionsAsked} questions");
+        if (i.HasResume)
+        {
+            parts.Add("with resume");
+        }
+
+        return string.Join(" · ", parts);
+    }
+}

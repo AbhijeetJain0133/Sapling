@@ -1,0 +1,158 @@
+@page "/onboarding/skills"
+@namespace Sapling.Shared.Pages.Onboarding
+@inject IProfileService Profiles
+@inject NavigationManager Nav
+
+<PageTitle>Your skills &middot; Sapling</PageTitle>
+
+<OnboardingFrame Step="2" Hue="roadmap" Art="onboarding-2" SideTitle="Every skill you add counts towards how well you fit each role." SideBlurb="Coursework, projects, practice. We take your word for it.">
+
+    <div class="stack g-1">
+        <h1 style="font-size:28px;line-height:34px">What can you already do?</h1>
+        <span class="t-muted">
+            Add anything you have worked with, even a little: coursework, projects or practice.
+            We take your word for it: every skill you add counts towards how well you fit each role.
+        </span>
+    </div>
+
+    @if (_picker is null)
+    {
+        <div class="card stack g-3">
+            <div class="skeleton" style="height:44px"></div>
+            <div class="skeleton" style="height:120px"></div>
+        </div>
+    }
+    else
+    {
+        <div class="card stack g-5">
+            <div class="stack g-2">
+                <label class="sr-only" for="skill-search">Search skills</label>
+                <input id="skill-search" class="input" type="search" placeholder="Search any skill, for example Docker, Tally or AutoCAD"
+                       autocomplete="off" @bind="_query" @bind:event="oninput" />
+
+                @if (!string.IsNullOrWhiteSpace(_query))
+                {
+                    @if (SearchResults.Count == 0)
+                    {
+                        <span class="t-small t-muted">No skill called "@_query.Trim()" in our list yet.</span>
+                    }
+                    else
+                    {
+                        <div class="row g-2 wrap">
+                            @foreach (var name in SearchResults)
+                            {
+                                @AddPill(name)
+                            }
+                        </div>
+                    }
+                }
+            </div>
+
+            <div class="stack g-2">
+                <div class="row between g-2">
+                    <span class="t-overline t-subtle">Your skills</span>
+                    @if (_selected.Count > 0)
+                    {
+                        <span class="t-caption t-subtle">@_selected.Count added &middot; tap to remove</span>
+                    }
+                </div>
+
+                @if (_selected.Count == 0)
+                {
+                    <span class="t-small t-muted">Nothing yet. Search above or tap a suggestion below.</span>
+                }
+                else
+                {
+                    <div class="row g-2 wrap">
+                        @foreach (var name in _selected)
+                        {
+                            <button type="button" class="chip chip-button chip-selected" aria-label="@($"Remove {name}")"
+                                    @onclick="() => _selected.Remove(name)" @key="name">
+                                @name
+                                <SapIcon Name="x" Size="13" Stroke="2.5" />
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+
+            @if (Suggestions.Count > 0)
+            {
+                <div class="stack g-2">
+                    <span class="t-overline t-subtle">@(_picker.Course is { } course ? $"Popular for {course}" : "Popular skills")</span>
+                    <div class="row g-2 wrap">
+                        @foreach (var name in Suggestions)
+                        {
+                            @AddPill(name)
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="row between g-3">
+            <button type="button" class="btn btn-ghost" @onclick="@(() => Nav.NavigateTo("/onboarding/about"))">
+                <SapIcon Name="chevron-left" Size="15" />
+                Back
+            </button>
+            <button type="button" class="btn btn-primary" disabled="@_saving" @onclick="SaveAsync">
+                @(_saving ? "Saving…" : "Continue")
+            </button>
+        </div>
+    }
+</OnboardingFrame>
+
+@code {
+    private SkillPickerDto? _picker;
+    private IReadOnlyList<SkillSuggestionDto> _catalogue = [];
+
+    // A list rather than a set so skills stay in the order they were added.
+    private readonly List<string> _selected = [];
+    private string _query = "";
+    private bool _saving;
+
+    private bool Has(string name) => _selected.Contains(name, StringComparer.OrdinalIgnoreCase);
+
+    private List<string> Suggestions => _picker!.Recommended.Where(n => !Has(n)).ToList();
+
+    private List<string> SearchResults => _catalogue
+        .Select(s => s.Name)
+        .Where(n => n.Contains(_query.Trim(), StringComparison.OrdinalIgnoreCase) && !Has(n))
+        .OrderBy(n => !n.StartsWith(_query.Trim(), StringComparison.OrdinalIgnoreCase))
+        .ThenBy(n => n)
+        .Take(10)
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var mine = await Profiles.GetSkillsAsync();
+        _catalogue = await Profiles.GetSkillCatalogueAsync();
+        _picker = await Profiles.GetSkillPickerAsync();
+        _selected.AddRange(mine.Select(s => s.Name));
+    }
+
+    private RenderFragment AddPill(string name) => __builder =>
+    {
+        <button type="button" class="chip chip-button chip-claimed" aria-label="@($"Add {name}")"
+                @onclick="() => Add(name)" @key="name">
+            <SapIcon Name="plus" Size="13" Stroke="2.5" />
+            @name
+        </button>
+    };
+
+    // The search text stays, so someone who typed "S" can add SQL, then Spring Boot, without retyping.
+    private void Add(string name)
+    {
+        if (!Has(name))
+        {
+            _selected.Add(name);
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        await Profiles.SetClaimedSkillsAsync([.. _selected]);
+        Nav.NavigateTo("/onboarding/quiz");
+    }
+}

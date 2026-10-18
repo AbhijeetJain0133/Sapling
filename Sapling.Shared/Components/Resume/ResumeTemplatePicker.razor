@@ -1,0 +1,42 @@
+@namespace Sapling.Shared.Components
+
+<div class="rs-templates" role="radiogroup" aria-label="Resume template">
+    @foreach (var (key, name, blurb) in ResumeTemplates.All)
+    {
+        var selected = key == Value;
+        <button type="button" role="radio" aria-checked="@(selected ? "true" : "false")"
+                class="rs-template @(selected ? "selected" : null)" @onclick="() => SelectAsync(key)">
+            <span class="rs-thumb @(key == ResumeTemplates.TwoColumn ? "two" : null)" aria-hidden="true">
+                <i class="head"></i>
+                @if (key == ResumeTemplates.TwoColumn)
+                {
+                    <span class="cols"><span class="side"><i></i><i></i><i></i><i></i></span><span class="main"><i></i><i></i><i></i><i></i><i></i><i></i></span></span>
+                }
+                else
+                {
+                    <span class="main"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+                }
+            </span>
+            <span class="stack" style="gap:2px;text-align:left">
+                <span style="font-weight:600">@name</span>
+                <span class="t-caption t-subtle">@blurb</span>
+            </span>
+            @if (selected)
+            {
+                <span class="rs-template-check"><SapIcon Name="check" Size="14" Stroke="2.5" /></span>
+            }
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter] public string Value { get; set; } = ResumeTemplates.SingleColumn;
+
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    private Task SelectAsync(string key)
+    {
+        Value = key;
+        return ValueChanged.InvokeAsync(key);
+    }
+}

@@ -1,0 +1,14 @@
+@page "/signout"
+@namespace Sapling.Components.Pages
+@layout EmptyLayout
+@attribute [AllowAnonymous]
+@inject ApiAuthService Auth
+@inject NavigationManager Nav
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.SignOutAsync();
+        Nav.NavigateTo("/signin");
+    }
+}

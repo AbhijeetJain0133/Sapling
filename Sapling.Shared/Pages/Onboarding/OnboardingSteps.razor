@@ -1,0 +1,27 @@
+@namespace Sapling.Shared.Pages.Onboarding
+
+<ol class="stepper" aria-label="Onboarding steps">
+    @foreach (var (label, index) in Steps.Select((s, i) => (s, i + 1)))
+    {
+        <li class="stepper-item @(index < Current ? "done" : index == Current ? "current" : null)"
+            aria-current="@(index == Current ? "step" : null)">
+            <span class="stepper-dot">
+                @if (index < Current)
+                {
+                    <SapIcon Name="check" Size="13" Stroke="3" />
+                }
+                else
+                {
+                    @index
+                }
+            </span>
+            <span class="stepper-label">@label</span>
+        </li>
+    }
+</ol>
+
+@code {
+    private static readonly string[] Steps = ["About you", "Your skills", "Interest check"];
+
+    [Parameter, EditorRequired] public int Current { get; set; }
+}

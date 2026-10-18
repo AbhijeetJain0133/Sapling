@@ -1,0 +1,133 @@
+@page "/signin"
+@namespace Sapling.Components.Pages
+@layout AuthLayout
+@attribute [AllowAnonymous]
+@inject ApiAuthService Auth
+@inject NavigationManager Nav
+
+<PageTitle>Sign in · Sapling</PageTitle>
+
+<div class="stack g-4">
+    <div class="stack g-1">
+        <h3>Sign in</h3>
+        <span class="t-small t-subtle">Pick up where you left off.</span>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="badge badge-error" style="padding:10px 14px;border-radius:var(--r-md);white-space:normal">
+            <SapIcon Name="alert-circle" Size="15" />
+            @_error
+        </div>
+    }
+
+    <div class="field">
+        <label for="email">Email</label>
+        <input id="email" class="input" type="email" inputmode="email" autocomplete="username"
+               placeholder="you@college.ac.in" value="@_email" @oninput="OnEmailInput" />
+    </div>
+
+    <div class="field">
+        <div class="row between g-2">
+            <label for="password">Password</label>
+            <a class="t-small" href="/forgot-password">Forgot password?</a>
+        </div>
+        <input id="password" class="input" type="password" autocomplete="current-password"
+               @bind="_password" @bind:event="oninput" @onkeydown="OnKeyDown" />
+    </div>
+
+    <button type="button" class="btn btn-primary btn-block" @onclick="SubmitAsync" disabled="@_busy">
+        @(_busy ? "Signing in…" : "Sign in")
+    </button>
+
+    @if (ApiAuthService.GoogleSignInSupported)
+    {
+        <button type="button" class="btn btn-secondary btn-block" @onclick="GoogleAsync" disabled="@_busy">
+            <GoogleMark />
+            Continue with Google
+        </button>
+    }
+
+    <div class="stack g-1" style="text-align:center">
+        <span class="t-small t-muted">New here? <a href="/register">Create an account</a></span>
+    </div>
+</div>
+
+@code {
+    private string _email = "";
+    private string _password = "";
+    private string? _error;
+    private bool _busy;
+
+    private void OnEmailInput(ChangeEventArgs e)
+    {
+        // Strip all whitespace in real-time as the user types or pastes
+        _email = (e.Value?.ToString() ?? "").Replace(" ", "").Trim();
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await SubmitAsync();
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_password))
+        {
+            _error = "Enter your email and password.";
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+
+        try
+        {
+            var result = await Auth.SignInAsync(_email.Trim(), _password);
+            if (result.Succeeded)
+            {
+                Nav.NavigateTo("/home");
+                return;
+            }
+
+            _error = result.Error;
+        }
+        catch (HttpRequestException)
+        {
+            _error = "Could not reach the Sapling server. Check that it is running and reachable from this device.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task GoogleAsync()
+    {
+        _busy = true;
+        _error = null;
+
+        try
+        {
+            var result = await Auth.SignInWithGoogleAsync();
+            if (result.Succeeded)
+            {
+                Nav.NavigateTo(result.IsNewUser ? "/onboarding/about" : "/home");
+                return;
+            }
+
+            _error = result.Error;
+        }
+        catch (HttpRequestException)
+        {
+            _error = "Could not reach the Sapling server. Check that it is running and reachable from this device.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

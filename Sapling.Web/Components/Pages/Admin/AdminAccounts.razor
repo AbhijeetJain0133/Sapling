@@ -1,0 +1,344 @@
+@page "/admin/students"
+@page "/admin/institutes"
+@page "/admin/admins"
+@namespace Sapling.Web.Components.Pages.Admin
+@layout AdminLayout
+@attribute [Authorize]
+@inject AdminService Admins
+@inject NavigationManager Nav
+@implements IDisposable
+
+<PageTitle>@Title · Sapling</PageTitle>
+
+<div class="stack g-5">
+    <div class="page-head" style="margin-bottom:0">
+        <div class="stack g-1">
+            <span class="page-eyebrow hue-@KindHue">Accounts</span>
+            <h1 style="font-size:28px;line-height:34px">@Title</h1>
+            <span class="t-muted">@Subtitle</span>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" @onclick="OpenCreate">
+            <SapIcon Name="plus" Size="15" />
+            @AddLabel
+        </button>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="badge badge-error" role="alert" style="padding:10px 14px;border-radius:var(--r-md);white-space:normal">
+            <SapIcon Name="alert-circle" Size="15" />
+            @_error
+        </div>
+    }
+
+    <input class="input" placeholder="Search name or email" value="@_query" @oninput="OnQueryInput" />
+
+    @if (_accounts is null)
+    {
+        <div class="card"><div class="skeleton" style="height:200px"></div></div>
+    }
+    else if (_accounts.Count == 0)
+    {
+        <SapEmptyState Title="Nothing here yet" Icon="users" Art="nothing-here" Hue="@KindHue"
+                       Description="@($"No {Noun} match. Try a different search, or add one.")" />
+    }
+    else
+    {
+        <div class="stack g-2">
+            <span class="t-caption t-subtle">@_accounts.Count @(_accounts.Count == 1 ? Noun.TrimEnd('s') : Noun)</span>
+            @foreach (var account in _accounts)
+            {
+                <div class="card row between g-3 wrap hue-@Hues.ForKey(account.Name)" @key="account.Id">
+                    <div class="row g-3" style="min-width:0">
+                        <span class="avatar" style="width:36px;height:36px;font-size:13px;flex:none">@Initials(account.Name)</span>
+                        <div class="stack" style="gap:2px;min-width:0">
+                            <span style="font-weight:600">
+                                @account.Name
+                                @if (account.IsSelf)
+                                {
+                                    <span class="t-caption t-subtle">&nbsp;(you)</span>
+                                }
+                            </span>
+                            <span class="t-caption t-subtle">@account.Email</span>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 wrap">
+                        @if (account.Deactivated)
+                        {
+                            <SapBadge Tone="warn" Icon="lock">Deactivated</SapBadge>
+                        }
+                        else
+                        {
+                            <SapBadge Tone="success">Active</SapBadge>
+                        }
+
+                        @if (!account.IsSelf)
+                        {
+                            <button type="button" class="btn btn-ghost btn-sm" disabled="@_busy"
+                                    @onclick="() => ToggleAsync(account)">
+                                <SapIcon Name="@(account.Deactivated ? "check-circle" : "lock")" Size="15" />
+                                @(account.Deactivated ? "Reactivate" : "Deactivate")
+                            </button>
+                            <button type="button" class="btn btn-ghost btn-sm" disabled="@_busy"
+                                    @onclick="() => _confirmDelete = account">
+                                <SapIcon Name="trash" Size="15" />
+                                Delete
+                            </button>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@if (_creating)
+{
+    <SapModal Title="@AddLabel" OnClose="() => _creating = false">
+        <ChildContent>
+            <div class="stack g-4">
+                @if (_createError is not null)
+                {
+                    <div class="badge badge-error" role="alert" style="padding:10px 14px;border-radius:var(--r-md);white-space:normal">
+                        @_createError
+                    </div>
+                }
+
+                <div class="field">
+                    <label for="new-email">Email</label>
+                    <input id="new-email" class="input" type="email" @bind="_newEmail" @bind:event="oninput" autocomplete="off" />
+                </div>
+
+                <div class="field">
+                    <label for="new-password">Password</label>
+                    <input id="new-password" class="input" type="password" @bind="_newPassword" @bind:event="oninput" autocomplete="new-password" />
+                    <span class="field-hint">At least 8 characters, with an uppercase letter, a lowercase letter and a digit.</span>
+                </div>
+
+                <span class="t-caption t-subtle">
+                    The account is created ready to use. Share the password with them and ask them to change it.
+                </span>
+            </div>
+        </ChildContent>
+        <Footer>
+            <button type="button" class="btn btn-ghost" @onclick="() => _creating = false">Cancel</button>
+            <button type="button" class="btn btn-primary" disabled="@_busy" @onclick="CreateAsync">Create account</button>
+        </Footer>
+    </SapModal>
+}
+
+@if (_confirmDelete is { } doomed)
+{
+    <SapModal Title="Delete this account?" OnClose="() => _confirmDelete = null">
+        <ChildContent>
+            <div class="stack g-3">
+                <span>@doomed.Name (@doomed.Email) will be removed.</span>
+                <span class="t-small t-muted">@DeleteWarning</span>
+            </div>
+        </ChildContent>
+        <Footer>
+            <button type="button" class="btn btn-ghost" @onclick="() => _confirmDelete = null">Cancel</button>
+            <button type="button" class="btn btn-danger" disabled="@_busy" @onclick="() => DeleteAsync(doomed)">Delete</button>
+        </Footer>
+    </SapModal>
+}
+
+@code {
+    private IReadOnlyList<AdminUserDto>? _accounts;
+    private AdminUserDto? _confirmDelete;
+    private string _query = "";
+    private string? _error;
+    private bool _busy;
+
+    private bool _creating;
+    private string _newEmail = "";
+    private string _newPassword = "";
+    private string? _createError;
+
+    private CancellationTokenSource? _debounce;
+    private string _kind = AccountTypes.Student;
+
+    private string KindHue => _kind switch
+    {
+        AccountTypes.Institution => "community",
+        AccountTypes.Admin => "interview",
+        _ => "career",
+    };
+
+    private string Title => _kind switch
+    {
+        AccountTypes.Institution => "Institutes",
+        AccountTypes.Admin => "Administrators",
+        _ => "Students",
+    };
+
+    private string Noun => _kind switch
+    {
+        AccountTypes.Institution => "institutes",
+        AccountTypes.Admin => "administrators",
+        _ => "students",
+    };
+
+    private string AddLabel => _kind switch
+    {
+        AccountTypes.Institution => "Add institute",
+        AccountTypes.Admin => "Add administrator",
+        _ => "Add student",
+    };
+
+    private string Subtitle => _kind switch
+    {
+        AccountTypes.Institution => "Institute logins. Names and emails only.",
+        AccountTypes.Admin => "Platform staff who can manage accounts.",
+        _ => "Student logins. Names and emails only.",
+    };
+
+    private string DeleteWarning => _kind switch
+    {
+        AccountTypes.Institution => "Their college, its posts and its comments stay, and another account can claim it later.",
+        AccountTypes.Admin => "They lose access immediately.",
+        _ => "Their profile, skills, resumes, interviews, comments and saved posts go with them. This cannot be undone.",
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The three routes share this component, so Blazor reuses the instance and never re-runs the route logic.
+        Nav.LocationChanged += OnLocationChanged;
+        await ApplyRouteAsync();
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) =>
+        _ = InvokeAsync(async () =>
+        {
+            await ApplyRouteAsync();
+            StateHasChanged();
+        });
+
+    private async Task ApplyRouteAsync()
+    {
+        var path = Nav.ToBaseRelativePath(Nav.Uri).TrimEnd('/');
+        var kind = path switch
+        {
+            "admin/institutes" => AccountTypes.Institution,
+            "admin/admins" => AccountTypes.Admin,
+            _ => AccountTypes.Student,
+        };
+
+        if (kind == _kind && _accounts is not null)
+        {
+            return;
+        }
+
+        _kind = kind;
+        _query = "";
+        _accounts = null;
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        try
+        {
+            _accounts = await Admins.GetAccountsAsync(_kind, _query);
+            _error = null;
+        }
+        catch (Exception e) when (e is ArgumentException or InvalidOperationException)
+        {
+            _error = e.Message;
+        }
+    }
+
+    private async Task OnQueryInput(ChangeEventArgs e)
+    {
+        _query = e.Value?.ToString() ?? "";
+
+        _debounce?.Cancel();
+        _debounce = new CancellationTokenSource();
+        var token = _debounce.Token;
+        try
+        {
+            await Task.Delay(250, token);
+            await ReloadAsync();
+            StateHasChanged();
+        }
+        catch (TaskCanceledException)
+        {
+            // A newer keystroke took over.
+        }
+    }
+
+    private void OpenCreate()
+    {
+        _newEmail = "";
+        _newPassword = "";
+        _createError = null;
+        _creating = true;
+    }
+
+    private async Task CreateAsync()
+    {
+        _busy = true;
+        try
+        {
+            await Admins.CreateAsync(new CreateAccountRequest(_newEmail, _newPassword, _kind));
+            _creating = false;
+            await ReloadAsync();
+        }
+        catch (Exception e) when (e is ArgumentException or InvalidOperationException)
+        {
+            _createError = e.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ToggleAsync(AdminUserDto account)
+    {
+        _busy = true;
+        try
+        {
+            await Admins.SetDeactivatedAsync(account.Id, !account.Deactivated);
+            await ReloadAsync();
+        }
+        catch (Exception e) when (e is ArgumentException or InvalidOperationException)
+        {
+            _error = e.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task DeleteAsync(AdminUserDto account)
+    {
+        _busy = true;
+        try
+        {
+            await Admins.DeleteAsync(account.Id);
+            _confirmDelete = null;
+            await ReloadAsync();
+        }
+        catch (Exception e) when (e is ArgumentException or InvalidOperationException)
+        {
+            _error = e.Message;
+            _confirmDelete = null;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string Initials(string name) => string.Concat(
+        name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+        _debounce?.Cancel();
+    }
+}

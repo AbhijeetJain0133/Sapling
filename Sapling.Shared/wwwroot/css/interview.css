@@ -1,0 +1,999 @@
+/* Voice mock interview: interviewer avatar, live layout, report. */
+
+/* ---------- Avatar ---------- */
+
+.iv-avatar {
+    position: relative;
+    width: 100%;
+    max-width: 260px;
+    margin-inline: auto;
+    aspect-ratio: 1;
+}
+
+.iv-avatar svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+.iv-avatar .iv-bg {
+    fill: var(--primary-soft);
+}
+
+.iv-avatar .iv-blazer {
+    fill: var(--primary);
+}
+
+.iv-avatar .iv-collar {
+    fill: var(--surface);
+}
+
+.iv-avatar .iv-skin {
+    fill: #C68C68;
+}
+
+.iv-avatar .iv-skin-shade {
+    fill: #B27854;
+}
+
+.iv-avatar .iv-hair {
+    fill: #2A1C15;
+}
+
+.iv-avatar .iv-ink {
+    fill: #1C1A19;
+}
+
+.iv-avatar .iv-lip {
+    fill: #8E3F3A;
+}
+
+.iv-avatar .iv-mouth-inside {
+    fill: #4A1F1C;
+}
+
+.iv-avatar .iv-teeth {
+    fill: #F4EEEA;
+}
+
+.iv-avatar .iv-stroke {
+    fill: none;
+    stroke: #1C1A19;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+}
+
+.iv-avatar .iv-earring {
+    fill: var(--accent);
+}
+
+.iv-avatar .iv-head {
+    transform-origin: 100px 160px;
+    animation: iv-sway 7s ease-in-out infinite;
+}
+
+.iv-avatar .iv-eyes {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: iv-blink 5.2s infinite;
+}
+
+.iv-avatar .iv-brows {
+    transition: transform var(--dur) ease;
+}
+
+.iv-avatar[data-state='speaking'] .iv-brows {
+    transform: translateY(-1.5px);
+}
+
+.iv-avatar[data-state='listening'] .iv-head {
+    animation: iv-nod 3.2s ease-in-out infinite;
+}
+
+/* Mouth shapes: 0 closed, 1-3 increasingly open. The browser sets data-mouth while audio plays. */
+.iv-avatar .iv-m1,
+.iv-avatar .iv-m2,
+.iv-avatar .iv-m3 {
+    display: none;
+}
+
+.iv-avatar[data-mouth='1'] .iv-m0,
+.iv-avatar[data-mouth='2'] .iv-m0,
+.iv-avatar[data-mouth='3'] .iv-m0 {
+    display: none;
+}
+
+.iv-avatar[data-mouth='1'] .iv-m1,
+.iv-avatar[data-mouth='2'] .iv-m2,
+.iv-avatar[data-mouth='3'] .iv-m3 {
+    display: inline;
+}
+
+.iv-avatar .iv-ring {
+    fill: none;
+    stroke: var(--primary);
+    stroke-width: 3;
+    opacity: 0;
+    transform-origin: 100px 100px;
+}
+
+.iv-avatar[data-state='listening'] .iv-ring {
+    animation: iv-pulse 1.8s ease-out infinite;
+}
+
+.iv-avatar[data-state='speaking'] .iv-ring {
+    opacity: .35;
+    stroke: var(--accent);
+}
+
+.iv-avatar .iv-dots {
+    opacity: 0;
+    transition: opacity var(--dur) ease;
+}
+
+.iv-avatar .iv-dots circle {
+    fill: var(--primary);
+}
+
+.iv-avatar[data-state='thinking'] .iv-dots {
+    opacity: 1;
+}
+
+.iv-avatar[data-state='thinking'] .iv-dots circle {
+    animation: iv-bob 1.1s ease-in-out infinite;
+}
+
+.iv-avatar[data-state='thinking'] .iv-dots circle:nth-child(2) {
+    animation-delay: .15s;
+}
+
+.iv-avatar[data-state='thinking'] .iv-dots circle:nth-child(3) {
+    animation-delay: .3s;
+}
+
+@keyframes iv-blink {
+    0%, 93%, 100% { transform: scaleY(1); }
+    95% { transform: scaleY(.1); }
+    97% { transform: scaleY(1); }
+}
+
+@keyframes iv-sway {
+    0%, 100% { transform: rotate(0deg); }
+    30% { transform: rotate(1.4deg); }
+    70% { transform: rotate(-1.2deg); }
+}
+
+@keyframes iv-nod {
+    0%, 100% { transform: rotate(0deg) translateY(0); }
+    40% { transform: rotate(-1.5deg) translateY(1px); }
+}
+
+@keyframes iv-pulse {
+    0% { opacity: .55; transform: scale(.94); }
+    100% { opacity: 0; transform: scale(1.06); }
+}
+
+@keyframes iv-bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+.iv-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+}
+
+.iv-status i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--subtle);
+}
+
+.iv-status[data-state='listening'] i {
+    background: var(--error);
+    animation: iv-rec 1.2s ease-in-out infinite;
+}
+
+.iv-status[data-state='speaking'] i {
+    background: var(--accent);
+}
+
+.iv-status[data-state='thinking'] i {
+    background: var(--primary);
+}
+
+@keyframes iv-rec {
+    50% { opacity: .3; }
+}
+
+/* ---------- Transcript bubbles (live room and report) ---------- */
+
+.iv-transcript {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    max-height: min(62vh, 640px);
+    overflow-y: auto;
+    padding-right: var(--sp-1);
+    scroll-behavior: smooth;
+}
+
+.iv-turn {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-width: 88%;
+}
+
+.iv-turn > span:first-child {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--subtle);
+}
+
+.iv-turn > div {
+    padding: var(--sp-3) var(--sp-4);
+    border-radius: var(--r-lg);
+    background: var(--surface2);
+    font-size: 14.5px;
+    line-height: 23px;
+}
+
+.iv-turn.me {
+    align-self: flex-end;
+    align-items: flex-end;
+}
+
+.iv-turn.me > div {
+    background: var(--primary-soft);
+}
+
+.iv-turn.live > div {
+    color: var(--muted);
+    font-style: italic;
+    border: 1.5px dashed var(--primary);
+    background: transparent;
+}
+
+/* ---------- Meeting room (live interview, full screen) ----------
+   Always dark, like a video call, whatever the app theme. The app tokens are redefined inside the room so
+   shared components (buttons, badges, avatar) pick up the dark values. */
+
+.mt-room {
+    color-scheme: dark;
+    --bg: #0E0F12;
+    --surface: #17191E;
+    --surface2: #22252C;
+    --line: #2C3039;
+    --ink: #ECEEF2;
+    --muted: #B4BAC6;
+    --subtle: #858C99;
+    --primary: #8FC0E8;
+    --primary-hover: #A7D0F0;
+    --primary-soft: #1E2A33;
+    --primary-text: #A7D0F0;
+    --primary-on: #10171D;
+    --accent: #EDB268;
+    --accent-soft: #2C2519;
+    --success: #6FBF8F;
+    --success-soft: #1B2620;
+    --success-text: #93D3AE;
+    --warn: #E0A93F;
+    --warn-soft: #29231A;
+    --warn-text: #E9C77E;
+    --error: #E5484D;
+    --error-soft: #2E1B1C;
+    --error-text: #F2A79B;
+    --info-soft: #1F2030;
+    --info-text: #BCC3F2;
+    --track: #2A2A2A;
+
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    background: var(--bg);
+    color: var(--ink);
+    overflow: hidden;
+}
+
+.mt-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-4);
+    padding: 14px 24px;
+}
+
+.mt-title {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    min-width: 0;
+}
+
+.mt-title > div {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.mt-title b {
+    font-family: var(--font-display);
+    font-size: 16px;
+    line-height: 20px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mt-title span {
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--subtle);
+}
+
+.mt-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: var(--r-pill);
+    background: var(--surface2);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.mt-pill .t-num {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.mt-rec {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--error);
+    animation: iv-rec 1.4s ease-in-out infinite;
+}
+
+.mt-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 16px;
+    padding: 0 24px;
+    min-height: 0;
+}
+
+.mt-main.no-panel {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.mt-stage {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    border-radius: 20px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    overflow: hidden;
+}
+
+.mt-stage .iv-avatar {
+    width: min(48vh, 340px);
+    max-width: 60%;
+}
+
+.mt-chips {
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    display: flex;
+    gap: 8px;
+}
+
+.mt-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: var(--r-pill);
+    background: rgba(0, 0, 0, .55);
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: .02em;
+}
+
+.mt-chip.name {
+    background: var(--primary);
+    color: var(--primary-on);
+}
+
+.mt-chip[data-state='listening'] {
+    color: var(--success-text);
+}
+
+.mt-chip[data-state='speaking'] {
+    color: var(--accent);
+}
+
+/* Subtitles of the interviewer's current line, shown on the stage when the transcript panel is closed. */
+.mt-caption {
+    position: absolute;
+    left: 16px;
+    right: calc(clamp(150px, 24%, 300px) + 32px);
+    bottom: 60px;
+    margin-inline: auto;
+    max-width: 720px;
+    padding: 10px 16px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, .7);
+    color: #fff;
+    font-size: 16px;
+    line-height: 24px;
+    text-align: center;
+}
+
+.mt-caption.me {
+    color: #CFE7FF;
+    font-style: italic;
+}
+
+.mt-chip[data-state='muted'] {
+    color: var(--error-text);
+}
+
+/* Mic state on the self view, bottom-right corner like a meeting tile. */
+.mt-self-mic {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, .55);
+    color: #fff;
+    z-index: 1;
+}
+
+.mt-self-mic.muted {
+    background: var(--error);
+}
+
+.mt-preview .mt-self-mic {
+    right: 14px;
+    bottom: 14px;
+    width: 34px;
+    height: 34px;
+}
+
+.user-face {
+    border-radius: 50%;
+    object-fit: cover;
+    flex: none;
+}
+
+/* Mic level bar: filled by interview.js from the live microphone. */
+.mic-meter {
+    height: 6px;
+    border-radius: var(--r-pill);
+    background: var(--surface2);
+    overflow: hidden;
+}
+
+.mic-meter > i {
+    display: block;
+    height: 100%;
+    width: calc(var(--lvl, 0) * 100%);
+    background: var(--success);
+    border-radius: var(--r-pill);
+    transition: width 60ms linear;
+}
+
+.mt-device-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.mt-device-grid .select {
+    font-size: 13.5px;
+    min-height: 40px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    text-overflow: ellipsis;
+}
+
+/* Mic and camera buttons with an arrow for their device menu, as in Google Meet. */
+.mt-split {
+    display: inline-flex;
+    align-items: center;
+    border-radius: var(--r-pill);
+    background: var(--surface2);
+}
+
+.mt-split .mt-caret {
+    width: 38px;
+    background: transparent;
+    color: var(--muted);
+    border-radius: var(--r-pill) 0 0 var(--r-pill);
+}
+
+.mt-split .mt-caret:hover {
+    color: var(--ink);
+    background: #2E323B;
+}
+
+.mt-menu-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 4;
+}
+
+.mt-menu {
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 4px);
+    transform: translateX(-50%);
+    z-index: 5;
+    width: min(620px, calc(100% - 24px));
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    border-radius: 18px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-overlay);
+}
+
+.mt-menu-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+}
+
+.mt-menu-row .select {
+    flex: 1 1 auto;
+    min-width: 0;
+    border-radius: var(--r-pill);
+}
+
+/* Self view: picture-in-picture inside the stage. The outline grows with the microphone level. */
+.mt-self {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    width: clamp(150px, 24%, 300px);
+    aspect-ratio: 16 / 10;
+    border-radius: 14px;
+    background: #0A0B0D;
+    border: 1px solid var(--line);
+    overflow: hidden;
+    outline: calc(var(--lvl, 0) * 4px) solid var(--success);
+    transition: outline-width 80ms linear;
+}
+
+.mt-self video,
+.mt-preview video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+    display: block;
+}
+
+.mt-self-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mt-self .mt-self-empty {
+    padding-bottom: 28px;
+}
+
+.mt-self-empty .avatar {
+    width: 48px;
+    height: 48px;
+    font-size: 17px;
+}
+
+.mt-self .mt-chips {
+    left: 8px;
+    bottom: 8px;
+}
+
+.mt-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-radius: 20px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    overflow: hidden;
+}
+
+.mt-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 12px 12px 20px;
+    border-bottom: 1px solid var(--line);
+}
+
+.mt-panel-head span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.mt-panel .iv-transcript {
+    flex: 1 1 auto;
+    max-height: none;
+    padding: 16px 20px;
+}
+
+.mt-panel-foot {
+    padding: 12px 16px 16px;
+    border-top: 1px solid var(--line);
+}
+
+.mt-panel-foot .textarea {
+    min-height: 88px;
+}
+
+.mt-controls {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 16px 24px 20px;
+    flex-wrap: wrap;
+}
+
+.mt-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: 0;
+    background: var(--surface2);
+    color: var(--ink);
+    cursor: pointer;
+    transition: background var(--dur-fast) ease, transform var(--dur-fast) ease;
+}
+
+.mt-btn:hover {
+    background: #2E323B;
+}
+
+.mt-btn:active {
+    transform: translateY(1px);
+}
+
+.mt-btn:disabled {
+    opacity: .4;
+    pointer-events: none;
+}
+
+.mt-btn.off {
+    background: var(--error-soft);
+    color: var(--error-text);
+}
+
+.mt-btn.on {
+    background: var(--primary-soft);
+    color: var(--primary-text);
+}
+
+.mt-btn.wide {
+    width: auto;
+    padding: 0 22px;
+    border-radius: var(--r-pill);
+    font-size: 14.5px;
+    font-weight: 700;
+}
+
+.mt-btn.primary {
+    background: var(--primary);
+    color: var(--primary-on);
+}
+
+.mt-btn.end {
+    width: 84px;
+    border-radius: var(--r-pill);
+    background: var(--error);
+    color: #fff;
+}
+
+.mt-btn.end:hover {
+    background: #D63E43;
+}
+
+/* A handset turned face-down is the usual "hang up" symbol. */
+.mt-btn.end svg {
+    transform: rotate(135deg);
+}
+
+.mt-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: var(--warn-soft);
+    color: var(--warn-text);
+    font-size: 13.5px;
+    line-height: 21px;
+}
+
+.mt-banner.error {
+    background: var(--error-soft);
+    color: var(--error-text);
+}
+
+.mt-banner-float {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(640px, calc(100% - 32px));
+    z-index: 2;
+}
+
+/* Lobby before joining */
+.mt-lobby {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    gap: 40px;
+    align-items: center;
+    width: min(1120px, 100%);
+    margin: auto;
+    padding: 8px 24px 24px;
+    overflow-y: auto;
+    max-height: 100%;
+}
+
+.mt-preview {
+    position: relative;
+    aspect-ratio: 16 / 10;
+    border-radius: 20px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    overflow: hidden;
+}
+
+.mt-preview-tools {
+    position: absolute;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+}
+
+.mt-lobby-side {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.mt-facts {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 14.5px;
+    color: var(--muted);
+}
+
+.mt-facts li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+@media (max-width: 899px) {
+    .mt-top {
+        padding: 10px 14px;
+    }
+
+    .mt-main,
+    .mt-main.no-panel {
+        grid-template-columns: minmax(0, 1fr);
+        padding: 0 12px;
+        position: relative;
+    }
+
+    .mt-panel {
+        position: absolute;
+        left: 12px;
+        right: 12px;
+        bottom: 0;
+        max-height: 60%;
+        z-index: 3;
+        box-shadow: var(--shadow-overlay);
+    }
+
+    .mt-self {
+        width: 34%;
+        right: 10px;
+        bottom: 10px;
+    }
+
+    .mt-chips {
+        left: 10px;
+        bottom: 10px;
+    }
+
+    .mt-device-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .mt-caption {
+        left: 10px;
+        right: 10px;
+        bottom: auto;
+        top: 12px;
+        font-size: 14.5px;
+        line-height: 21px;
+    }
+
+    .mt-controls {
+        gap: 8px;
+        padding: 12px 12px 16px;
+    }
+
+    .mt-btn {
+        width: 46px;
+        height: 46px;
+    }
+
+    .mt-btn.wide {
+        padding: 0 16px;
+    }
+
+    .mt-lobby {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 20px;
+        margin: 0 auto;
+        align-content: start;
+    }
+}
+
+/* ---------- Resume upload ---------- */
+
+.iv-drop {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-2);
+    min-height: 180px;
+    padding: var(--sp-5);
+    text-align: center;
+    border: 2px dashed var(--line);
+    border-radius: var(--r-lg);
+    background: var(--surface2);
+    transition: border-color var(--dur-fast) ease;
+}
+
+.iv-drop:hover,
+.iv-drop:focus-within {
+    border-color: var(--primary);
+}
+
+.iv-drop input[type='file'] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+/* ---------- Report ---------- */
+
+.iv-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--sp-3);
+}
+
+.iv-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--sp-3) var(--sp-4);
+    border-radius: var(--r-md);
+    background: var(--surface2);
+}
+
+.iv-stat b {
+    font-family: var(--font-display);
+    font-size: 24px;
+    line-height: 30px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 639px) {
+    .iv-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.iv-details {
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    background: var(--surface);
+}
+
+.iv-details > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    cursor: pointer;
+    list-style: none;
+}
+
+.iv-details > summary::-webkit-details-marker {
+    display: none;
+}
+
+.iv-details[open] > summary {
+    border-bottom: 1px solid var(--line);
+}
+
+.iv-details > div {
+    padding: var(--sp-4);
+}
+
+.iv-list {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+@media print {
+    .iv-noprint {
+        display: none !important;
+    }
+
+    .iv-details > div {
+        display: block !important;
+    }
+}

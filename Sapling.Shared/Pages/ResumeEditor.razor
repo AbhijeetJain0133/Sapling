@@ -1,0 +1,672 @@
+@page "/resume/{Id:int}"
+@namespace Sapling.Shared.Pages
+@layout EmptyLayout
+@implements IAsyncDisposable
+@inject IResumeService Resumes
+@inject IFormFactor FormFactor
+@inject NavigationManager Nav
+@inject IJSRuntime Js
+
+<PageTitle>@(_resume?.Title ?? "Resume") · Editor · Sapling</PageTitle>
+<RecordVisit Feature="@FeatureCatalog.Resume" />
+
+@if (FormFactor.Platform != "Web")
+{
+    <div class="page"><ResumeWebOnly><a class="btn btn-secondary" href="/resume">Back to resumes</a></ResumeWebOnly></div>
+}
+else if (_resume is null)
+{
+    <div class="page"><div class="card"><div class="skeleton" style="height:360px"></div></div></div>
+}
+else
+{
+    <NavigationLock OnBeforeInternalNavigation="SaveBeforeLeavingAsync" />
+
+    <div class="rs-editor">
+        <header class="rs-topbar">
+            <a class="btn btn-ghost btn-sm" href="/resume"><SapIcon Name="arrow-left" Size="15" /> <span class="rs-hide-sm">Resumes</span></a>
+            <input class="rs-title-input" maxlength="80" aria-label="Resume name" @bind="_title" @bind:after="TitleChangedAsync" />
+            <SapBadge Tone="neutral" Class="rs-hide-sm">@ResumeTemplates.NameOf(_resume.Template)</SapBadge>
+            <span class="rs-save-state t-caption" aria-live="polite">
+                @switch (_saveState)
+                {
+                    case SaveState.Saving:
+                        <span class="t-subtle">Saving…</span>
+                        break;
+                    case SaveState.Dirty:
+                        <span class="t-subtle">Unsaved changes</span>
+                        break;
+                    case SaveState.Failed:
+                        <span style="color:var(--error-text)">Not saved</span>
+                        break;
+                    default:
+                        <span class="t-subtle row g-1"><SapIcon Name="check" Size="13" /> Saved</span>
+                        break;
+                }
+            </span>
+            <span class="grow"></span>
+            <button type="button" class="btn btn-ghost btn-sm" @onclick="CompileAsync" disabled="@(!_mounted || _compiling)" title="Rebuild the PDF">
+                <SapIcon Name="refresh" Size="15" /> <span class="rs-hide-sm">Compile</span>
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" @onclick="SaveAsync" disabled="@(!_mounted || _busy is not null)" title="Save (Ctrl+S)">
+                <SapIcon Name="save" Size="15" /> <span class="rs-hide-sm">Save</span>
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" @onclick='() => DownloadAsync("tex")' disabled="@(!_mounted)" title="Download the LaTeX source">
+                <SapIcon Name="code" Size="15" /> .tex
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" @onclick='() => DownloadAsync("pdf")' disabled="@(!_hasPdf)" title="Download the PDF">
+                <SapIcon Name="download" Size="15" /> PDF
+            </button>
+        </header>
+
+        <div class="rs-pane-switch">
+            <SapSegmented TValue="string" Options="PaneOptions" Value="@_pane" ValueChanged="v => _pane = v" />
+        </div>
+
+        @if (_error is not null)
+        {
+            <div class="rs-alert" role="alert">
+                <SapIcon Name="alert-circle" Size="16" />
+                <span class="grow">@_error</span>
+                @if (_retry is not null)
+                {
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="RetryAsync">Try again</button>
+                }
+                <button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Dismiss" @onclick="() => { _error = null; _retry = null; }"><SapIcon Name="x" Size="14" /></button>
+            </div>
+        }
+
+        <div class="rs-main" data-pane="@_pane" @ref="_mainHost">
+            <section class="rs-pane rs-pane-code" aria-label="LaTeX source">
+                <div class="rs-pane-head">
+                    <span class="row g-2"><SapIcon Name="code" Size="15" /> <b>LaTeX</b></span>
+                    @if (_editorKind == "plain")
+                    {
+                        <span class="t-caption t-subtle" title="The code editor couldn't load, so this is a plain text box.">Plain editor</span>
+                    }
+                </div>
+                <div class="rs-code-wrap">
+                    <div class="rs-code" @ref="_editorHost"></div>
+                    @if (!_mounted)
+                    {
+                        <div class="rs-overlay"><span class="rs-spinner" aria-hidden="true"></span><span class="t-small t-muted">Loading the editor…</span></div>
+                    }
+                    else if (_busy is not null and not "save")
+                    {
+                        <div class="rs-overlay rs-overlay-soft"><span class="rs-spinner" aria-hidden="true"></span><span class="t-small t-muted">@BusyText</span></div>
+                    }
+                </div>
+            </section>
+
+            <div class="rs-resizer" data-resizer="0" role="separator" aria-orientation="vertical" tabindex="0"
+                 aria-label="Resize the LaTeX and preview panes" title="Drag to resize. Double-click to reset."></div>
+
+            <section class="rs-pane rs-pane-preview" aria-label="PDF preview">
+                <div class="rs-pane-head">
+                    <span class="row g-2"><SapIcon Name="file-text" Size="15" /> <b>Preview</b></span>
+                    <span class="t-caption" style="color:@(_compileState == CompileState.Failed ? "var(--error-text)" : "var(--subtle)")">@CompileText</span>
+                </div>
+                <div class="rs-preview-wrap">
+                    <div class="rs-preview" @ref="_previewHost"></div>
+                    @if (!_hasPdf)
+                    {
+                        <div class="rs-overlay">
+                            @if (_compileState == CompileState.Unavailable)
+                            {
+                                <SapIcon Name="alert-triangle" Size="22" />
+                                <span class="t-small" style="max-width:36ch;text-align:center">The PDF preview needs Tectonic, a LaTeX compiler, on the server. You can still edit, save, use the AI and download the .tex file.</span>
+                            }
+                            else if (_compileState == CompileState.Failed)
+                            {
+                                <SapIcon Name="alert-circle" Size="22" />
+                                <span class="t-small" style="max-width:36ch;text-align:center">The LaTeX has an error, so there's no PDF yet. Open the log below to see the line.</span>
+                            }
+                            else
+                            {
+                                <span class="rs-spinner" aria-hidden="true"></span>
+                                <span class="t-small t-muted">Building the PDF… The first build can take a minute.</span>
+                            }
+                        </div>
+                    }
+                </div>
+                @if (!string.IsNullOrWhiteSpace(_log) && _compileState != CompileState.Unavailable)
+                {
+                    <details class="rs-log" open="@(_compileState == CompileState.Failed)">
+                        <summary>Compiler log</summary>
+                        <pre>@_log</pre>
+                    </details>
+                }
+            </section>
+
+            <div class="rs-resizer" data-resizer="1" role="separator" aria-orientation="vertical" tabindex="0"
+                 aria-label="Resize the preview and review panes" title="Drag to resize. Double-click to reset."></div>
+
+            <aside class="rs-pane rs-pane-side" aria-label="Review and AI">
+                <div class="rs-pane-head">
+                    <SapSegmented TValue="string" Options="TabOptions" Value="@_tab" ValueChanged="v => _tab = v" />
+                </div>
+                <div class="rs-side-body">
+                    @if (_tab == "review")
+                    {
+                        @if (_busy == "analyse")
+                        {
+                            <div class="stack center g-3" style="padding:var(--sp-6) 0;text-align:center">
+                                <span class="rs-spinner" aria-hidden="true"></span>
+                                <span class="t-small t-muted">Reading your resume like a recruiter would… about 20 to 40 seconds.</span>
+                            </div>
+                        }
+                        else
+                        {
+                            <ResumeScorePanel Analysis="_resume.Analysis" Stale="_resume.AnalysisStale" Busy="@_busy"
+                                              OnApply="ApplyAsync" OnRecheck="AnalyseAsync" />
+                        }
+                    }
+                    else
+                    {
+                        <div class="stack g-3">
+                            <div class="field">
+                                <label for="rs-ask">What should change?</label>
+                                <textarea id="rs-ask" class="textarea" maxlength="1000" style="min-height:110px"
+                                          @bind="_instruction" @bind:event="oninput" @onkeydown="AskKeyAsync" disabled="@(_busy is not null)"
+                                          placeholder="e.g. Shorten the summary to two lines, or: add a project called Attendance App, built with Flutter and Firebase, that marks attendance by QR code"></textarea>
+                                <span class="field-hint">The AI only uses details you give it. Ctrl+Enter to send.</span>
+                            </div>
+                            <div class="row g-2 wrap">
+                                @foreach (var example in Examples)
+                                {
+                                    <button type="button" class="chip chip-button" style="font-size:12.5px" @onclick="() => _instruction = example" disabled="@(_busy is not null)">@example</button>
+                                }
+                            </div>
+                            <div class="row between g-2 wrap">
+                                @if (_previousLatex is not null)
+                                {
+                                    <button type="button" class="btn btn-ghost btn-sm" @onclick="UndoAiAsync" disabled="@(_busy is not null)">
+                                        <SapIcon Name="undo" Size="14" /> Undo last AI change
+                                    </button>
+                                }
+                                else
+                                {
+                                    <span></span>
+                                }
+                                <button type="button" class="btn btn-primary btn-sm" @onclick="EditAsync" disabled="@(_busy is not null || string.IsNullOrWhiteSpace(_instruction))">
+                                    @if (_busy == "edit")
+                                    {
+                                        <span class="rs-spinner sm" aria-hidden="true"></span>
+                                        <span>Editing…</span>
+                                    }
+                                    else
+                                    {
+                                        <SapIcon Name="sparkles" Size="14" />
+                                        <span>Ask AI</span>
+                                    }
+                                </button>
+                            </div>
+                            @if (_notes.Count > 0)
+                            {
+                                <div class="stack g-2">
+                                    <span class="t-overline t-subtle">This session</span>
+                                    @foreach (var (asked, note) in _notes)
+                                    {
+                                        <div class="card card-inset stack g-1" style="padding:var(--sp-3)">
+                                            <span class="t-caption t-subtle">@asked</span>
+                                            <span class="t-small">@note</span>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </aside>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    [SupplyParameterFromQuery] public string? Review { get; set; }
+
+    private enum SaveState { Saved, Dirty, Saving, Failed }
+
+    private enum CompileState { Waiting, Compiling, Ok, Failed, Unavailable }
+
+    private static readonly IReadOnlyList<SapSegmented<string>.Option> TabOptions =
+        [new("review", "Review"), new("ai", "Ask AI")];
+
+    private static readonly IReadOnlyList<SapSegmented<string>.Option> PaneOptions =
+        [new("code", "LaTeX"), new("preview", "Preview"), new("side", "Review & AI")];
+
+    private static readonly string[] Examples =
+    [
+        "Shorten the summary to two lines",
+        "Start every bullet with a strong action verb",
+        "Put Projects above Experience",
+        "Fix spelling and grammar",
+    ];
+
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly List<(string Asked, string Note)> _notes = [];
+
+    private ResumeDto? _resume;
+    private string _title = "";
+    private ElementReference _editorHost;
+    private ElementReference _mainHost;
+    private ElementReference _previewHost;
+    private DotNetObjectReference<ResumeEditor>? _ref;
+    private bool _mounting;
+    private bool _mounted;
+    private string? _editorKind;
+    private SaveState _saveState = SaveState.Saved;
+    private CompileState _compileState = CompileState.Waiting;
+    private bool _compiling;
+    private bool _compileQueued;
+    private bool _hasPdf;
+    private string? _log;
+    private string? _busy;
+    private string _tab = "review";
+    private string _pane = "code";
+    private string _instruction = "";
+    private string? _previousLatex;
+    private string? _error;
+    private Func<Task>? _retry;
+    private bool _disposed;
+
+    private string BusyText => _busy switch
+    {
+        "analyse" => "Scoring your resume…",
+        "edit" => "The AI is editing your resume…",
+        "undo" => "Restoring…",
+        { } s when s.StartsWith("apply-", StringComparison.Ordinal) => "Applying the suggestion…",
+        _ => "Working…",
+    };
+
+    private string CompileText => _compileState switch
+    {
+        CompileState.Compiling => "Compiling…",
+        CompileState.Ok => "Up to date",
+        CompileState.Failed => "Compile failed",
+        CompileState.Unavailable => "Compiler not installed",
+        _ => "",
+    };
+
+    private string FileName
+    {
+        get
+        {
+            var invalid = Path.GetInvalidFileNameChars();
+            var name = new string(_title.Select(c => invalid.Contains(c) ? '-' : c).ToArray()).Trim();
+            return name.Length == 0 ? "resume" : name;
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (FormFactor.Platform != "Web")
+        {
+            return;
+        }
+
+        _resume = await Resumes.GetAsync(Id);
+        if (_resume is null)
+        {
+            Nav.NavigateTo("/resume");
+            return;
+        }
+
+        _title = _resume.Title;
+        _tab = Review == "1" || _resume.Analysis is not null ? "review" : "ai";
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_resume is null || _mounted || _mounting || _disposed)
+        {
+            return;
+        }
+
+        _mounting = true;
+        _ref = DotNetObjectReference.Create(this);
+        try
+        {
+            await Js.InvokeVoidAsync("sapling.resume.initResizers", _mainHost);
+            _editorKind = await Js.InvokeAsync<string>("sapling.resume.mount", _editorHost, _previewHost, _resume.Latex, _ref);
+            _mounted = true;
+            StateHasChanged();
+            await CompileAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    // ── JS callbacks ────────────────────────────────────────────────────────────────────────────────────────
+
+    [JSInvokable]
+    public Task OnDirty()
+    {
+        _saveState = SaveState.Dirty;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>The student paused typing: save and rebuild the preview.</summary>
+    [JSInvokable]
+    public Task OnIdle() => InvokeAsync(async () =>
+    {
+        if (_busy is null)
+        {
+            await SaveAsync();
+        }
+
+        await CompileAsync();
+    });
+
+    [JSInvokable]
+    public Task OnSaveRequested() => InvokeAsync(async () =>
+    {
+        await SaveAsync();
+        await CompileAsync();
+    });
+
+    // ── Actions ─────────────────────────────────────────────────────────────────────────────────────────────
+
+    private async Task<string?> GetTextAsync()
+    {
+        try
+        {
+            return await Js.InvokeAsync<string?>("sapling.resume.getText");
+        }
+        catch (JSDisconnectedException)
+        {
+            return null;
+        }
+    }
+
+    private async Task CompileAsync()
+    {
+        if (!_mounted)
+        {
+            return;
+        }
+
+        if (_compiling)
+        {
+            _compileQueued = true;
+            return;
+        }
+
+        _compiling = true;
+        try
+        {
+            do
+            {
+                _compileQueued = false;
+                _compileState = CompileState.Compiling;
+                StateHasChanged();
+
+                var text = await GetTextAsync();
+                if (text is null)
+                {
+                    return;
+                }
+
+                var result = await Resumes.CompileAsync(text);
+                _log = result.Log;
+                if (!result.CompilerAvailable)
+                {
+                    _compileState = CompileState.Unavailable;
+                }
+                else if (result.Ok && result.Pdf is { } pdf)
+                {
+                    await Js.InvokeVoidAsync("sapling.resume.showPdf", pdf);
+                    _hasPdf = true;
+                    _compileState = CompileState.Ok;
+                }
+                else
+                {
+                    // The last good PDF stays on screen while the error is fixed.
+                    _compileState = CompileState.Failed;
+                }
+            }
+            while (_compileQueued && !_disposed);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (ResumeProblemException ex)
+        {
+            _compileState = CompileState.Failed;
+            _log = ex.Message;
+        }
+        finally
+        {
+            _compiling = false;
+            if (!_disposed)
+            {
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!_mounted || _resume is null)
+        {
+            return;
+        }
+
+        await _gate.WaitAsync();
+        try
+        {
+            var text = await GetTextAsync();
+            if (text is null)
+            {
+                return;
+            }
+
+            _saveState = SaveState.Saving;
+            StateHasChanged();
+            _resume = await Resumes.SaveAsync(Id, new SaveResumeRequest(text, _title));
+            await Js.InvokeVoidAsync("sapling.resume.markClean");
+            _saveState = SaveState.Saved;
+        }
+        catch (ResumeProblemException ex)
+        {
+            _saveState = SaveState.Failed;
+            ShowError(ex.Message, null);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private async Task TitleChangedAsync()
+    {
+        _title = string.IsNullOrWhiteSpace(_title) ? "My resume" : _title.Trim();
+        await SaveAsync();
+    }
+
+    private async Task SaveBeforeLeavingAsync(LocationChangingContext context)
+    {
+        if (_saveState is SaveState.Dirty or SaveState.Failed)
+        {
+            await SaveAsync();
+            if (_saveState == SaveState.Failed)
+            {
+                context.PreventNavigation();
+            }
+        }
+    }
+
+    private Task AnalyseAsync() => RunAiAsync("analyse", async text =>
+    {
+        _resume = await Resumes.AnalyseAsync(Id, new SaveResumeRequest(text, _title));
+        _tab = "review";
+        return null;
+    }, AnalyseAsync);
+
+    private Task ApplyAsync(ResumeSuggestionDto suggestion) => RunAiAsync($"apply-{suggestion.Id}", async text =>
+    {
+        var result = await Resumes.ApplySuggestionAsync(Id, suggestion.Id, new SaveResumeRequest(text, _title));
+        _notes.Insert(0, ($"Applied: {suggestion.Fix}", result.Note));
+        return result;
+    }, () => ApplyAsync(suggestion));
+
+    private Task EditAsync()
+    {
+        var instruction = _instruction.Trim();
+        if (instruction.Length == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        return RunAiAsync("edit", async text =>
+        {
+            var result = await Resumes.EditAsync(Id, new ResumeInstructionRequest(text, instruction));
+            _notes.Insert(0, (instruction, result.Note));
+            _instruction = "";
+            return result;
+        }, EditAsync);
+    }
+
+    private async Task AskKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && (e.CtrlKey || e.MetaKey))
+        {
+            await EditAsync();
+        }
+    }
+
+    /// <summary>
+    /// Runs one AI action with the editor locked. Edits (a non-null result) replace the editor text, and the text
+    /// before them is kept for one-step undo.
+    /// </summary>
+    private async Task RunAiAsync(string busy, Func<string, Task<ResumeEditResultDto?>> action, Func<Task> retry)
+    {
+        if (_busy is not null || !_mounted)
+        {
+            return;
+        }
+
+        _error = null;
+        _retry = null;
+        _busy = busy;
+        StateHasChanged();
+
+        await _gate.WaitAsync();
+        try
+        {
+            await Js.InvokeVoidAsync("sapling.resume.setLocked", true);
+            var text = await GetTextAsync();
+            if (text is null)
+            {
+                return;
+            }
+
+            var result = await action(text);
+            if (result is not null)
+            {
+                _previousLatex = text;
+                _resume = result.Resume;
+                await Js.InvokeVoidAsync("sapling.resume.setText", result.Resume.Latex);
+            }
+
+            await Js.InvokeVoidAsync("sapling.resume.markClean");
+            _saveState = SaveState.Saved;
+        }
+        catch (ResumeProblemException ex)
+        {
+            ShowError(ex.Message, ex.Retryable ? retry : null);
+        }
+        catch (JSDisconnectedException)
+        {
+            return;
+        }
+        finally
+        {
+            _busy = null;
+            _gate.Release();
+            try
+            {
+                await Js.InvokeVoidAsync("sapling.resume.setLocked", false);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        StateHasChanged();
+        await CompileAsync();
+    }
+
+    private async Task UndoAiAsync()
+    {
+        if (_previousLatex is not { } previous || _busy is not null)
+        {
+            return;
+        }
+
+        _busy = "undo";
+        try
+        {
+            await Js.InvokeVoidAsync("sapling.resume.setText", previous);
+            _previousLatex = null;
+        }
+        finally
+        {
+            _busy = null;
+        }
+
+        await SaveAsync();
+        await CompileAsync();
+    }
+
+    private async Task DownloadAsync(string kind)
+    {
+        try
+        {
+            await Js.InvokeAsync<bool>("sapling.resume.download", kind, FileName);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private void ShowError(string message, Func<Task>? retry)
+    {
+        _error = message;
+        _retry = retry;
+    }
+
+    private async Task RetryAsync()
+    {
+        var retry = _retry;
+        _error = null;
+        _retry = null;
+        if (retry is not null)
+        {
+            await retry();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        try
+        {
+            if (_mounted)
+            {
+                await Js.InvokeVoidAsync("sapling.resume.destroy");
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
+        _ref?.Dispose();
+    }
+}

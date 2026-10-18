@@ -1,0 +1,384 @@
+@page "/onboarding/about"
+@namespace Sapling.Shared.Pages.Onboarding
+@using Sapling.Shared.Content
+@using Sapling.Shared.Contracts
+@inject IProfileService Profiles
+@inject NavigationManager Nav
+
+<PageTitle>About you &middot; Sapling</PageTitle>
+
+<OnboardingFrame Step="1" Hue="profile" Art="onboarding-1" SideTitle="Your course decides which career paths we show first." SideBlurb="Three short steps. Everything here can be changed later from your profile.">
+
+    <div class="stack g-1">
+        <h1 style="font-size:28px;line-height:34px">Tell us about you</h1>
+        <span class="t-muted">Your course decides which career paths we show first. You can change any of it later.</span>
+        <span class="t-caption t-subtle" style="font-size:12px;margin-top:2px">Fields marked with <span class="req">*</span> are required</span>
+    </div>
+
+    @if (_form is not null)
+    {
+        <EditForm Model="_form" OnValidSubmit="SaveAsync" class="card stack g-4">
+            <DataAnnotationsValidator />
+
+            <div class="grid grid-2">
+                <div class="field">
+                    <label for="firstName">First name <span class="req" aria-hidden="true">*</span></label>
+                    <InputText id="firstName" class="input" @bind-Value="_form.FirstName" />
+                    <ValidationMessage For="() => _form.FirstName" class="field-error" />
+                </div>
+                <div class="field">
+                    <label for="lastName">Last name <span class="req" aria-hidden="true">*</span></label>
+                    <InputText id="lastName" class="input" @bind-Value="_form.LastName" />
+                    <ValidationMessage For="() => _form.LastName" class="field-error" />
+                </div>
+            </div>
+
+            <!-- College field with AICTE & Premier Directory Autocomplete -->
+            <div class="field" style="position:relative">
+                <div class="row between items-center">
+                    <label for="college">College <span class="req" aria-hidden="true">*</span></label>
+                    <span class="t-caption t-subtle" style="font-size:11px">Auto-fills your state &amp; city</span>
+                </div>
+                <CollegeAutocomplete Id="college"
+                                     @bind-Value="_form.College"
+                                     OnCollegeSelected="SelectCollege"
+                                     StateFilter="@_form.State" />
+                <ValidationMessage For="() => _form.College" class="field-error" />
+            </div>
+
+            <div class="grid grid-2">
+                <div class="field">
+                    <label for="course">Course <span class="req" aria-hidden="true">*</span></label>
+                    <InputSelect id="course" class="select" @bind-Value="_form.Course" @bind-Value:after="OnCourseChanged">
+                        <option value="">Select course</option>
+                        @foreach (var course in CourseCatalog.Courses)
+                        {
+                            <option value="@course">@course</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="() => _form.Course" class="field-error" />
+                </div>
+                <div class="field">
+                    <label for="branch">Branch <span class="req" aria-hidden="true">*</span></label>
+                    <InputSelect id="branch" class="select" @bind-Value="_form.Branch" disabled="@(string.IsNullOrEmpty(_form.Course))">
+                        @if (string.IsNullOrEmpty(_form.Course))
+                        {
+                            <option value="">Select course first</option>
+                        }
+                        else
+                        {
+                            <option value="">Select branch</option>
+                            @foreach (var branch in CourseCatalog.BranchesFor(_form.Course))
+                            {
+                                <option value="@branch">@branch</option>
+                            }
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="() => _form.Branch" class="field-error" />
+                </div>
+            </div>
+
+            <div class="grid grid-2">
+                <div class="field">
+                    <label for="year">Graduating in <span class="req" aria-hidden="true">*</span></label>
+                    <InputSelect id="year" class="select" @bind-Value="_form.GraduationYear">
+                        @for (var y = 2020; y <= 2035; y++)
+                        {
+                            <option value="@y">@y</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="() => _form.GraduationYear" class="field-error" />
+                </div>
+                <div class="field">
+                    <label for="language">Preferred language</label>
+                    <InputSelect id="language" class="select" @bind-Value="_form.PreferredLanguage">
+                        <option value="English">English</option>
+                        <option value="Hindi">Hindi</option>
+                        <option value="Hinglish">Hindi &amp; English</option>
+                    </InputSelect>
+                </div>
+            </div>
+
+            <div class="grid grid-2">
+                <div class="field">
+                    <label for="state">State</label>
+                    <InputSelect id="state" class="select" @bind-Value="_form.State" @bind-Value:after="OnStateChanged">
+                        <option value="">Select state</option>
+                        @foreach (var state in LocationCatalog.GetStates())
+                        {
+                            <option value="@state">@state</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="() => _form.State" class="field-error" />
+                </div>
+                <div class="field">
+                    <label for="city">City</label>
+                    <InputSelect id="city" class="select" @bind-Value="_form.City" disabled="@(string.IsNullOrEmpty(_form.State))">
+                        @if (string.IsNullOrEmpty(_form.State))
+                        {
+                            <option value="">Select state first</option>
+                        }
+                        else
+                        {
+                            <option value="">Select city</option>
+                            @foreach (var city in LocationCatalog.GetCitiesForState(_form.State))
+                            {
+                                <option value="@city">@city</option>
+                            }
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="() => _form.City" class="field-error" />
+                </div>
+            </div>
+
+            <div class="grid grid-2">
+                <div class="field">
+                    <label for="cgpa">CGPA (out of 10)</label>
+                    <input id="cgpa" type="text" inputmode="decimal" class="input"
+                           value="@_cgpaText" @onchange="OnCgpaChanged"
+                           pattern="[0-9]*\.?[0-9]*" placeholder="e.g. 7.2" />
+                    @if (!string.IsNullOrEmpty(_cgpaError))
+                    {
+                        <span class="field-error">@_cgpaError</span>
+                    }
+                </div>
+                <div class="field">
+                    <label for="backlogs">Active backlogs</label>
+                    <input id="backlogs" type="text" inputmode="numeric" class="input"
+                           value="@_backlogsText" @onchange="OnBacklogsChanged"
+                           pattern="[0-9]*" placeholder="0" />
+                    @if (!string.IsNullOrEmpty(_backlogsError))
+                    {
+                        <span class="field-error">@_backlogsError</span>
+                    }
+                </div>
+            </div>
+
+            <div class="row between g-3">
+                <span class="t-caption t-subtle">Step 1 of 3</span>
+                <button type="submit" class="btn btn-primary" disabled="@_saving">Continue</button>
+            </div>
+        </EditForm>
+    }
+    else
+    {
+        <div class="card stack g-3">
+            <div class="skeleton" style="height:44px"></div>
+            <div class="skeleton" style="height:44px"></div>
+            <div class="skeleton" style="height:44px"></div>
+        </div>
+    }
+</OnboardingFrame>
+
+@code {
+    private Form? _form;
+    private bool _saving;
+    private string _cgpaText = "";
+    private string _cgpaError = "";
+    private string _backlogsText = "0";
+    private string _backlogsError = "";
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        var profile = await Profiles.GetAsync();
+
+        // Parse existing branch into course + branch
+        var (course, branch) = CourseCatalog.Parse(profile.Branch);
+
+        // Parse existing full name into first + last
+        var (first, last) = SplitName(profile.FullName);
+
+        var cgpa = profile.Cgpa;
+        _cgpaText = cgpa > 0 ? cgpa.ToString("0.##") : "";
+        _backlogsText = profile.Backlogs.ToString();
+
+        var state = profile.State;
+        var city = profile.City;
+        if (string.IsNullOrEmpty(state) && !string.IsNullOrEmpty(city))
+        {
+            state = LocationCatalog.InferStateFromCity(city);
+        }
+
+        _form = new Form
+        {
+            FirstName = first,
+            LastName = last,
+            College = profile.College,
+            Course = course,
+            Branch = branch,
+            GraduationYear = profile.GraduationYear == 0 ? DateTime.Today.Year + 1 : profile.GraduationYear,
+            State = state,
+            City = city,
+            Cgpa = cgpa,
+            Backlogs = profile.Backlogs,
+            PreferredLanguage = string.IsNullOrWhiteSpace(profile.PreferredLanguage) ? "English" : profile.PreferredLanguage,
+        };
+    }
+
+    private void SelectCollege(CollegeDto college)
+    {
+        if (_form is null) return;
+
+        _form.College = college.Name;
+
+        // 1. Auto-select State
+        if (!string.IsNullOrWhiteSpace(college.State))
+        {
+            var states = LocationCatalog.GetStates();
+            var matchedState = states.FirstOrDefault(s => string.Equals(s, college.State, StringComparison.OrdinalIgnoreCase))
+                ?? LocationCatalog.InferStateFromCity(college.City);
+
+            if (!string.IsNullOrEmpty(matchedState))
+            {
+                _form.State = matchedState;
+            }
+            else
+            {
+                _form.State = college.State;
+            }
+        }
+
+        // 2. Auto-select City based on state's cities
+        if (!string.IsNullOrWhiteSpace(college.City))
+        {
+            var cities = LocationCatalog.GetCitiesForState(_form.State);
+            var matchedCity = cities.FirstOrDefault(c => string.Equals(c, college.City, StringComparison.OrdinalIgnoreCase));
+            _form.City = matchedCity ?? college.City;
+        }
+    }
+
+    private static (string First, string Last) SplitName(string fullName)
+    {
+        if (string.IsNullOrWhiteSpace(fullName))
+            return ("", "");
+
+        var parts = fullName.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length switch
+        {
+            0 => ("", ""),
+            1 => (parts[0], ""),
+            _ => (parts[0], parts[1]),
+        };
+    }
+
+    private void OnCourseChanged()
+    {
+        if (_form is null) return;
+
+        var branches = CourseCatalog.BranchesFor(_form.Course);
+        _form.Branch = branches.Length == 1 ? branches[0] : "";
+    }
+
+    private void OnStateChanged()
+    {
+        if (_form is null) return;
+
+        var cities = LocationCatalog.GetCitiesForState(_form.State);
+        if (!cities.Contains(_form.City, StringComparer.OrdinalIgnoreCase))
+        {
+            _form.City = "";
+        }
+    }
+
+    private void OnCgpaChanged(ChangeEventArgs e)
+    {
+        if (_form is null) return;
+
+        var raw = e.Value?.ToString() ?? "";
+        _cgpaText = raw;
+        _cgpaError = "";
+
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            _form.Cgpa = 0;
+            return;
+        }
+
+        if (double.TryParse(raw, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var val)
+            && val >= 0 && val <= 10)
+        {
+            _form.Cgpa = val;
+        }
+        else
+        {
+            _cgpaError = "CGPA must be a number between 0 and 10.";
+        }
+    }
+
+    private void OnBacklogsChanged(ChangeEventArgs e)
+    {
+        if (_form is null) return;
+
+        var raw = e.Value?.ToString() ?? "";
+        _backlogsText = raw;
+        _backlogsError = "";
+
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            _form.Backlogs = 0;
+            _backlogsText = "0";
+            return;
+        }
+
+        if (int.TryParse(raw, out var val) && val >= 0)
+        {
+            _form.Backlogs = val;
+        }
+        else
+        {
+            _backlogsError = "Enter a positive whole number.";
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_form is null) return;
+        if (!string.IsNullOrEmpty(_cgpaError) || !string.IsNullOrEmpty(_backlogsError)) return;
+
+        _saving = true;
+
+        var fullName = $"{_form.FirstName} {_form.LastName}".Trim();
+        var branchValue = !string.IsNullOrEmpty(_form.Course)
+            ? CourseCatalog.Format(_form.Course, !string.IsNullOrEmpty(_form.Branch) ? _form.Branch : CourseCatalog.GeneralBranch)
+            : (!string.IsNullOrEmpty(_form.Branch) ? _form.Branch : "General");
+
+        await Profiles.UpdateAsync(new UpdateProfileRequest(
+            fullName, _form.College, branchValue, _form.GraduationYear,
+            _form.City, _form.Cgpa, _form.Backlogs, _form.PreferredLanguage, _form.State));
+        Nav.NavigateTo("/onboarding/skills");
+    }
+
+    private sealed class Form
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Enter your college.")]
+        public string College { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Enter your first name.")]
+        public string FirstName { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Enter your last name.")]
+        public string LastName { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Select your course.")]
+        public string Course { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Select your branch.")]
+        public string Branch { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Range(2020, 2035, ErrorMessage = "Enter a year between 2020 and 2035.")]
+        public int GraduationYear { get; set; }
+
+        public string State { get; set; } = "";
+
+        public string City { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Range(0.0, 10.0, ErrorMessage = "CGPA must be between 0 and 10.")]
+        public double Cgpa { get; set; }
+
+        public int Backlogs { get; set; }
+
+        public string PreferredLanguage { get; set; } = "English";
+    }
+}

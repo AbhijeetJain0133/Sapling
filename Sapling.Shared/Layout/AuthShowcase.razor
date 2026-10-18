@@ -1,0 +1,117 @@
+@namespace Sapling.Shared.Layout
+
+<section class="container section" id="features">
+    <div class="stack g-2" style="margin-bottom:var(--sp-5)">
+        <span class="page-eyebrow hue-career">What is inside</span>
+        <h2>@FeatureCatalog.Count modules, one continuous journey.</h2>
+    </div>
+    <div class="grid grid-4 landing-tiles">
+        @foreach (var feature in FeatureCatalog.All)
+        {
+            <SapFeatureCard Feature="feature" Long ShowStat />
+        }
+    </div>
+</section>
+
+<section class="container section">
+    <div class="stack g-2" style="margin-bottom:var(--sp-5)">
+        <span class="page-eyebrow hue-roadmap">How it works</span>
+        <h2>Four steps from profile to placed.</h2>
+    </div>
+    <ol class="hiw">
+        @foreach (var (step, index) in _steps.Select((s, i) => (s, i)))
+        {
+            <li class="hiw-step">
+                <span class="hiw-node"><SapGrowthMark Stage="index + 1" Size="30" /></span>
+                <span class="hiw-num">0@(index + 1)</span>
+                <h4>@step.Title</h4>
+                <span class="t-small t-muted">@step.Detail</span>
+            </li>
+        }
+    </ol>
+</section>
+
+<section class="container section">
+    <div class="g-card hue-career landing-fit">
+        <SapArt Name="career" Class="g-card-art" />
+        <div class="row-top g-6 wrap" style="position:relative">
+            <div class="stack center g-3" style="flex:none">
+                <ScoreRing Value="61" Size="150" Caption="Sample student, Software Developer" Label="Fit" OnLight />
+            </div>
+            <div class="grow stack g-4" style="min-width:280px;max-width:560px">
+                <div class="stack g-2">
+                    <span class="t-overline">Role fit</span>
+                    <h2>How well you fit each role, and why.</h2>
+                    <p class="t-small" style="margin:0">
+                        No black box. Every role shows the skills it asks for against yours, drawn from the O*NET
+                        occupational database, so you know exactly what to learn next.
+                    </p>
+                </div>
+                <div class="grid grid-2">
+                    @foreach (var part in _scoreParts)
+                    {
+                        <LinearBar Percent="part.Value" Label="@part.Name" ValueText="@($"{part.Weight}%")" Small />
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="container section">
+    <div class="grid grid-4">
+        @foreach (var item in _trust)
+        {
+            <div class="tile tile-quiet hue-@item.Hue">
+                <span class="icon-tile icon-tile-solid"><SapIcon Name="@item.Icon" Size="18" /></span>
+                <h4>@item.Title</h4>
+                <span class="t-small t-muted">@item.Detail</span>
+            </div>
+        }
+    </div>
+</section>
+
+<footer class="container section landing-footer">
+    <div class="row between g-4 wrap">
+        <div class="stack g-2">
+            <SapLogo Size="28" WordSize="19" />
+            <span class="t-small t-subtle">Campus to Corporate &middot; built for Madhya Pradesh.</span>
+            <a class="t-small" href="/privacy">Privacy policy</a>
+        </div>
+        <div class="row g-2 wrap">
+            <a class="btn btn-accent" href="/register">Create an account</a>
+            <a class="btn btn-primary" href="/signin">Sign in</a>
+        </div>
+    </div>
+</footer>
+
+@code {
+    private sealed record Step(string Title, string Detail);
+
+    private sealed record Part(string Name, int Weight, int Value);
+
+    private sealed record Trust(string Icon, string Hue, string Title, string Detail);
+
+    private static readonly Step[] _steps =
+    [
+        new("Build your profile", "Academics, skills and interests in one place, with a fifteen-minute interest assessment."),
+        new("See where you fit", "A fit score for every role your course leads to, with the reasoning shown."),
+        new("Follow the roadmap", "A week-by-week plan that puts free and government-subsidised courses first."),
+        new("Get placed", "Matched opportunities, an ATS-ready resume, and interview practice that scores you."),
+    ];
+
+    private static readonly Part[] _scoreParts =
+    [
+        new("Skills you already cover", 75, 44),
+        new("Route from your course", 15, 100),
+        new("Match with your interests", 10, 80),
+    ];
+
+    private static readonly Trust[] _trust =
+    [
+        new("shield-check", "profile", "Your word counts", "Tell us what you know and every role shows exactly what it still needs."),
+        new("info", "career", "Explainable by default", "Every recommendation carries a \"why this?\" you can open and argue with."),
+        new("lock", "govt", "Your data stays yours", "Consent-first, minimal collection, and deletion on request under the DPDP Act."),
+        new("book-open", "community", "Hindi-ready", "Built on a dual-script type system so Hindi is a first-class language, not a bolt-on."),
+    ];
+}

@@ -1,0 +1,14 @@
+/* MAUI WebView specifics: no text selection chrome, no overscroll bounce. */
+
+html, body {
+    overscroll-behavior: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.input, .textarea, .select {
+    user-select: text;
+    -webkit-user-select: text;
+}
+
+.status-bar-safe-area { display: none; }

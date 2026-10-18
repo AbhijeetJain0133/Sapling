@@ -1,0 +1,248 @@
+@page "/"
+@page "/home"
+@namespace Sapling.Shared.Pages
+@inject IHomeService HomeData
+@inject ICommunityService Community
+@inject IRecentFeaturesService Recents
+@inject NavigationManager Nav
+@inject IThemeService Theme
+@inject IJSRuntime JS
+
+<PageTitle>Home · Sapling</PageTitle>
+
+<div class="home-layout">
+    @* Where the student stands, at a glance: a side panel on wide screens, the first card on a phone. *@
+    <aside class="g-card hue-brand home-panel">
+        @if (FormFactor.Kind == FormFactorKind.Desktop)
+        {
+            @* Website only: a quick light/dark switch. The app follows the phone and has the setting in Profile. *@
+            <button type="button" class="theme-toggle" @onclick="ToggleThemeAsync" aria-label="Switch between light and dark" title="Switch between light and dark">
+                <SapIcon Name="moon" Size="17" Stroke="2" Class="theme-toggle-moon" />
+                <SapIcon Name="sun" Size="17" Stroke="2" Class="theme-toggle-sun" />
+            </button>
+        }
+        <div class="home-panel-top">
+            @if (_summary is { TargetFit: { } fit })
+            {
+                <a class="home-panel-ring" href="/career" aria-label="@($"{fit}% fit for {_summary.TargetRole}")">
+                    <ScoreRing Value="fit" Size="116" Thickness="10" Label="Fit" OnLight />
+                </a>
+            }
+            else
+            {
+                <SapArt Name="career" Class="home-panel-art" />
+            }
+            <div class="stack home-panel-who">
+                <span class="t-overline">@Greeting</span>
+                <h1 class="home-panel-h1">@(_summary?.FirstName ?? "there")</h1>
+                @if (_summary is { TargetRole: { } role })
+                {
+                    <span class="home-panel-role">Fit for <b>@role</b></span>
+                }
+                else if (_summary is not null)
+                {
+                    <span class="home-panel-role">Pick a role to see your fit</span>
+                }
+            </div>
+        </div>
+
+        @if (_summary is { TotalCheckpoints: > 0 })
+        {
+            <a class="home-panel-block" href="/roadmap">
+                <span class="row between g-2">
+                    <span class="row g-2"><SapIcon Name="route" Size="15" /> Roadmap</span>
+                    <b>@_summary.CompletedCheckpoints / @_summary.TotalCheckpoints</b>
+                </span>
+                <span class="home-panel-bar" role="img" aria-label="@($"{_summary.CompletedCheckpoints} of {_summary.TotalCheckpoints} checkpoints done")">
+                    <i style="width:@(Progress.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"></i>
+                </span>
+                @if (_summary.NextCheckpoint is not null)
+                {
+                    <span class="home-panel-next">
+                        <span class="home-panel-next-label">Next up</span>
+                        <span class="home-panel-next-text">@_summary.NextCheckpoint</span>
+                    </span>
+                }
+            </a>
+        }
+
+        @if (_summary is not null)
+        {
+            <div class="home-panel-chips">
+                <a class="home-panel-chip" href="/opportunities">
+                    <SapIcon Name="briefcase" Size="16" />
+                    <b>@_summary.NewOpportunities</b>
+                    <span>openings</span>
+                </a>
+                <a class="home-panel-chip" href="/exams">
+                    <SapIcon Name="calendar" Size="16" />
+                    <b>@_summary.ClosingSoonExams</b>
+                    <span>exams soon</span>
+                </a>
+                <a class="home-panel-chip" href="/community">
+                    <SapIcon Name="users" Size="16" />
+                    <b>@_summary.NewCommunityPosts</b>
+                    <span>new posts</span>
+                </a>
+            </div>
+
+            <a class="btn btn-onlight home-panel-cta" href="@HeroRoute">
+                @HeroCta
+                <SapIcon Name="arrow-right" Size="15" />
+            </a>
+        }
+    </aside>
+
+    <div class="stack g-6 home-main">
+
+    <div class="home-banners">
+    <SapCarousel TItem="Banner" Items="HomeBanners.All" ShowArrows="@(FormFactor.Kind == FormFactorKind.Desktop)">
+        <ItemTemplate Context="banner">
+            <a class="g-card banner hue-@banner.Hue" href="@banner.Route">
+                <SapArt Name="@banner.Art" Class="g-card-art" />
+                <div class="g-card-body stack g-2">
+                    <h3>@banner.Title</h3>
+                    <span class="t-small">@banner.Subtitle</span>
+                    <span class="row g-1 t-small banner-cta">
+                        @banner.Cta
+                        <SapIcon Name="arrow-right" Size="15" />
+                    </span>
+                </div>
+            </a>
+        </ItemTemplate>
+    </SapCarousel>
+    </div>
+
+
+    @if (_recent.Count > 0)
+    {
+        <div class="stack g-3">
+            <span class="section-title hue-brand">Jump back in</span>
+            <div class="scroll-x">
+                @foreach (var feature in _recent)
+                {
+                    <a class="recent-card hue-@feature.Hue" href="@feature.Route">
+                        <SapIcon Name="@feature.Icon" Size="16" />
+                        @feature.Title
+                    </a>
+                }
+            </div>
+        </div>
+    }
+
+    <div class="stack g-3">
+        <span class="section-title hue-brand">Everything you can do</span>
+        <div class="grid grid-4 home-features">
+            @foreach (var feature in FeatureCatalog.HomeCards)
+            {
+                <SapFeatureCard Feature="feature" Badge="@BadgeFor(feature.Key)" BadgeTone="@BadgeToneFor(feature.Key)" />
+            }
+        </div>
+    </div>
+
+    @if (_latestPosts.Count > 0)
+    {
+        <SapCard Title="From the community" Subtitle="Latest from your college" Class="tile hue-community">
+            <Header>
+                <a class="btn btn-secondary btn-sm" href="/community">See all</a>
+            </Header>
+            <ChildContent>
+                <div class="stack">
+                    @foreach (var post in _latestPosts)
+                    {
+                        <a class="post-row" href="@($"/community/{post.Id}")">
+                            <InstitutionTile InstitutionId="post.Author.Id" Size="36" />
+                            <div class="stack grow" style="gap:2px">
+                                <span class="t-small post-row-title">@post.Title</span>
+                                <span class="row g-1 wrap t-caption t-subtle">
+                                    <span>@post.Author.ShortName</span>
+                                    @if (post.Author.Verified)
+                                    {
+                                        <VerifiedTick Size="12" />
+                                    }
+                                    <span>&middot; @post.Kind &middot; @CommunityDisplay.Ago(post.PostedAt)</span>
+                                </span>
+                            </div>
+                            <span class="row g-1 t-caption t-subtle" aria-label="@($"{post.Upvotes} upvotes")">
+                                <SapIcon Name="arrow-up" Size="14" /> @post.Upvotes
+                            </span>
+                        </a>
+                    }
+                </div>
+            </ChildContent>
+        </SapCard>
+    }
+    </div>
+</div>
+
+@code {
+    [Inject] private IFormFactor FormFactor { get; set; } = default!;
+
+    private HomeSummaryDto? _summary;
+    private List<Feature> _recent = [];
+    private IReadOnlyList<CommunityPostDto> _latestPosts = [];
+
+    private static string Greeting => DateTime.Now.Hour switch
+    {
+        < 12 => "Good morning",
+        < 17 => "Good afternoon",
+        _ => "Good evening",
+    };
+
+    /// <summary>Share of roadmap checkpoints done, with a sliver shown at zero so the bar never looks broken.</summary>
+    private double Progress => _summary is { TotalCheckpoints: > 0 }
+        ? Math.Max(2, 100.0 * _summary.CompletedCheckpoints / _summary.TotalCheckpoints)
+        : 0;
+
+    private string HeroRoute => _summary is { NextCheckpoint: not null } ? "/roadmap" : "/career";
+
+    private string HeroCta => _summary switch
+    {
+        { NextCheckpoint: not null } => "Continue roadmap",
+        { TargetRole: not null } => "See your gaps",
+        _ => "Pick a target role",
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _summary = await HomeData.GetSummaryAsync();
+        if (!_summary.OnboardingComplete)
+        {
+            Nav.NavigateTo("/onboarding/about");
+            return;
+        }
+
+        _latestPosts = (await Community.GetFeedAsync()).Take(3).ToList();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        var keys = await Recents.GetAsync();
+        _recent = keys.Select(FeatureCatalog.Find).OfType<Feature>().ToList();
+        if (_recent.Count > 0)
+        {
+            StateHasChanged();
+        }
+    }
+
+    private async Task ToggleThemeAsync()
+    {
+        var showing = await JS.InvokeAsync<string>("sapling.theme.resolved");
+        await Theme.SetAsync(showing == "dark" ? ThemeMode.Light : ThemeMode.Dark);
+    }
+
+    private string? BadgeFor(string key) => key switch
+    {
+        FeatureCatalog.Opportunities when _summary is { NewOpportunities: > 0 } => $"{_summary.NewOpportunities} open",
+        FeatureCatalog.GovtTrack when _summary is { ClosingSoonExams: > 0 } => $"{_summary.ClosingSoonExams} soon",
+        FeatureCatalog.Community when _summary is { NewCommunityPosts: > 0 } => $"{_summary.NewCommunityPosts} new",
+        _ => null,
+    };
+
+    private string BadgeToneFor(string key) => key == FeatureCatalog.GovtTrack ? "warn" : "primary";
+}

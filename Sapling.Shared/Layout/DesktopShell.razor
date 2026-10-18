@@ -1,0 +1,181 @@
+@namespace Sapling.Shared.Layout
+@inject IJSRuntime Js
+@inject IProfileService Profiles
+@inject AssistantChat Chat
+
+<div class="shell-desktop">
+    <nav class="sidebar @(_collapsed ? "collapsed" : null)">
+        <div class="sidebar-brand">
+            @if (_collapsed)
+            {
+                <SapLogo Size="30" ShowWord="false" />
+            }
+            else
+            {
+                <SapLogo Size="30" />
+            }
+        </div>
+
+        <div class="sidebar-nav">
+            @foreach (var entry in Navigation.Primary)
+            {
+                <NavLink class="@($"nav-item hue-{entry.Hue}")" href="@entry.Route"
+                         Match="@(entry.ExactMatch ? NavLinkMatch.All : NavLinkMatch.Prefix)"
+                         title="@(_collapsed ? entry.Label : null)">
+                    <SapIcon Name="@entry.Icon" Size="18" Stroke="2" />
+                    <span>@entry.Label</span>
+                </NavLink>
+            }
+        </div>
+
+        <div class="sidebar-foot">
+            <NavLink class="nav-item hue-profile" href="/profile" title="@(_collapsed ? "Profile & settings" : null)">
+                @if (!string.IsNullOrEmpty(AvatarDataUrl))
+                {
+                    <img src="@AvatarDataUrl" alt="@DisplayName" class="avatar" style="width:26px;height:26px;object-fit:cover;border-radius:var(--r-pill)" />
+                }
+                else
+                {
+                    <span class="avatar" style="width:26px;height:26px;font-size:11px">@Initials</span>
+                }
+                <span class="stack grow" style="gap:0">
+                    <span style="font-size:13px">@DisplayName</span>
+                    <span class="t-caption t-subtle" style="font-weight:400">Profile &amp; settings</span>
+                </span>
+            </NavLink>
+        </div>
+
+        <button type="button" class="sidebar-collapse-btn"
+                @onclick="ToggleCollapse"
+                title="@(_collapsed ? "Expand sidebar" : "Collapse sidebar")"
+                aria-label="@(_collapsed ? "Expand sidebar" : "Collapse sidebar")">
+            <SapIcon Name="@(_collapsed ? "chevron-right" : "chevron-left")" Size="14" />
+        </button>
+    </nav>
+
+    <div class="shell-main">
+        @* Phone-width browsers get the mobile app's navigation instead of the sidebar (see .shell-narrow in app.css). *@
+        <header class="topbar shell-narrow">
+            <a href="/home" aria-label="Sapling home"><SapLogo Size="26" /></a>
+            <span class="grow"></span>
+            <NavLink href="/profile" aria-label="Profile and settings">
+                @if (!string.IsNullOrEmpty(AvatarDataUrl))
+                {
+                    <img src="@AvatarDataUrl" alt="" class="avatar" style="width:30px;height:30px;object-fit:cover;border-radius:var(--r-pill)" />
+                }
+                else
+                {
+                    <span class="avatar" style="width:30px;height:30px;font-size:12px">@Initials</span>
+                }
+            </NavLink>
+        </header>
+
+        <main class="page">
+            @ChildContent
+        </main>
+
+        <SaplingChat />
+
+        <nav class="tabbar shell-narrow" aria-label="Main">
+            @for (var i = 0; i < Navigation.Tabs.Count; i++)
+            {
+                var entry = Navigation.Tabs[i];
+                if (i == Navigation.TabsBeforeAi)
+                {
+                    <ChatTab />
+                }
+                <NavLink class="@($"tab tab-icon-only hue-{entry.Hue}")" href="@entry.Route" aria-label="@entry.Label" title="@entry.Label"
+                         Match="@(entry.ExactMatch ? NavLinkMatch.All : NavLinkMatch.Prefix)" @onclick="Chat.Close">
+                    <SapIcon Name="@entry.Icon" Size="25" Stroke="2" />
+                </NavLink>
+            }
+            <button type="button" class="tab tab-icon-only @(_moreOpen ? "active" : null)" aria-label="More" title="More" @onclick="OpenMore">
+                <SapIcon Name="grid" Size="25" Stroke="2" />
+            </button>
+        </nav>
+    </div>
+</div>
+
+@if (_moreOpen)
+{
+    <SapModal Sheet Title="All features" OnClose="() => _moreOpen = false">
+        <div class="stack g-1">
+            @foreach (var entry in Navigation.MoreSheet)
+            {
+                <NavLink class="@($"nav-item hue-{entry.Hue}")" href="@entry.Route" @onclick="() => _moreOpen = false">
+                    <SapIcon Name="@entry.Icon" Size="18" Stroke="2" />
+                    <span class="grow">@entry.Label</span>
+                    <SapIcon Name="chevron-right" Size="16" />
+                </NavLink>
+            }
+        </div>
+    </SapModal>
+}
+
+@code {
+    private const string SidebarKey = "sapling-sidebar-collapsed";
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    private string DisplayName { get; set; } = "Student";
+    private string? AvatarDataUrl { get; set; }
+    private bool _collapsed;
+    private bool _moreOpen;
+
+    private void OpenMore()
+    {
+        Chat.Close();
+        _moreOpen = true;
+    }
+
+    private string Initials => string.Concat(
+        DisplayName.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Take(2)
+            .Select(part => char.ToUpperInvariant(part[0])));
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var saved = await Js.InvokeAsync<string?>("sapling.store.get", SidebarKey);
+        var wasCollapsed = saved == "true";
+        if (wasCollapsed != _collapsed)
+        {
+            _collapsed = wasCollapsed;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ToggleCollapse()
+    {
+        _collapsed = !_collapsed;
+        await Js.InvokeVoidAsync("sapling.store.set", SidebarKey, _collapsed ? "true" : "false");
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (AuthState is null)
+        {
+            return;
+        }
+
+        var state = await AuthState;
+        var name = state.User.FindFirst("full_name")?.Value ?? state.User.Identity?.Name;
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            DisplayName = name.Contains('@') ? name[..name.IndexOf('@')] : name;
+        }
+
+        try
+        {
+            var profile = await Profiles.GetAsync();
+            AvatarDataUrl = profile.AvatarDataUrl;
+        }
+        catch
+        {
+            // Ignore if unauthenticated or offline
+        }
+    }
+}

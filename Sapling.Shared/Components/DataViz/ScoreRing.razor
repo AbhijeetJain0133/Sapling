@@ -1,0 +1,79 @@
+@namespace Sapling.Shared.Components
+
+@{
+    var radius = (Size - Thickness) / 2.0;
+    var circumference = 2 * Math.PI * radius;
+    var dash = circumference * Math.Clamp(_shown / (double)Max, 0, 1);
+    var track = OnLight ? "rgba(255,255,255,.25)" : "color-mix(in srgb, var(--g-a) 14%, var(--surface2))";
+    var stroke = OnLight ? "#fff" : $"url(#{_gid})";
+    var ink = OnLight ? "#fff" : "var(--ink)";
+}
+
+<div class="stack center @(Hue is not null ? $"hue-{Hue}" : null)" style="gap:2px">
+    <svg width="@Size" height="@Size" viewBox="0 0 @Size @Size" role="img" aria-label="@Label @Value out of @Max">
+        <defs>
+            <linearGradient id="@_gid" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="var(--g-a)" />
+                <stop offset="1" stop-color="var(--g-b)" />
+            </linearGradient>
+        </defs>
+        <circle cx="@(Size / 2.0)" cy="@(Size / 2.0)" r="@radius" fill="none"
+                stroke="@track" stroke-width="@Thickness" />
+        <circle cx="@(Size / 2.0)" cy="@(Size / 2.0)" r="@radius" fill="none"
+                stroke="@stroke" stroke-width="@Thickness" stroke-linecap="round"
+                stroke-dasharray="@dash.ToString("0.##") @circumference.ToString("0.##")"
+                transform="rotate(-90 @(Size / 2.0) @(Size / 2.0))"
+                style="transition:stroke-dasharray 900ms cubic-bezier(.22,1,.36,1)" />
+        <text x="50%" y="50%" text-anchor="middle" dominant-baseline="central"
+              font-family="var(--font-display)" font-weight="800" font-size="@(Size / 3.4)"
+              fill="@ink" letter-spacing="-0.02em">@Value</text>
+    </svg>
+    @if (!string.IsNullOrEmpty(Caption))
+    {
+        <span class="t-caption @(OnLight ? null : "t-subtle")" style="@(OnLight ? "color:rgba(255,255,255,.8)" : null)">@Caption</span>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public int Value { get; set; }
+
+    [Parameter] public int Max { get; set; } = 100;
+
+    [Parameter] public int Size { get; set; } = 140;
+
+    [Parameter] public int Thickness { get; set; } = 12;
+
+    [Parameter] public string? Caption { get; set; }
+
+    [Parameter] public string Label { get; set; } = "Score";
+
+    /// <summary>Feature hue for the gradient stroke, e.g. "career". Null inherits the nearest .hue-* ancestor.</summary>
+    [Parameter] public string? Hue { get; set; }
+
+    /// <summary>White ring and text, for use inside a gradient card.</summary>
+    [Parameter] public bool OnLight { get; set; }
+
+    /// <summary>Sweep only on first render; revisits show the final value immediately.</summary>
+    [Parameter] public bool Animate { get; set; } = true;
+
+    private readonly string _gid = "ring" + Guid.NewGuid().ToString("N")[..8];
+    private int _shown;
+
+    protected override void OnParametersSet()
+    {
+        if (!Animate)
+        {
+            _shown = Value;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Animate && _shown != Value)
+        {
+            await Task.Delay(60);
+            _shown = Value;
+            StateHasChanged();
+        }
+    }
+}

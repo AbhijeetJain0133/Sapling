@@ -1,0 +1,209 @@
+@page "/privacy"
+@attribute [AllowAnonymous]
+@attribute [ExcludeFromInteractiveRouting]
+@layout Sapling.Shared.Layout.EmptyLayout
+@using Microsoft.AspNetCore.Components.Endpoints
+@inject IConfiguration Config
+
+<PageTitle>Privacy policy · Sapling</PageTitle>
+
+@* Website only, and readable without signing in. Each section says what the code actually does; when a
+   feature starts handling data differently, this page has to change with it. *@
+<div class="policy-page">
+    <header class="container policy-top">
+        <SapLogo Size="28" WordSize="19" />
+        <a class="btn btn-secondary btn-sm" href="/signin">Sign in</a>
+    </header>
+
+    <main class="container policy">
+        <span class="t-overline t-subtle">Last updated @Updated</span>
+        <h1>Privacy policy</h1>
+        <p class="policy-lede">
+            Sapling helps college students plan a career: it suggests roles, shows the skills you are missing,
+            points you to free courses, reviews your resume and runs mock interviews. This page explains what
+            information Sapling keeps about you, why, and who else can see it.
+        </p>
+
+        <div class="card policy-summary">
+            <span class="policy-summary-title">The short version</span>
+            <ul>
+                <li>We keep what you give us (your profile, skills, resume, interview answers and messages) so the features work.</li>
+                <li>Your college can see your name, email, branch, passing year, target role and skills. It cannot see your resume, your interviews or the student space.</li>
+                <li>Your resume, interview answers and questions to Sapling AI are sent to an AI service to produce the feedback.</li>
+                <li>We do not sell your information and Sapling shows no advertising.</li>
+                <li>You can correct your details and delete your account yourself, from your profile.</li>
+            </ul>
+        </div>
+
+        <h2>1. Who we are</h2>
+        <p>
+            Sapling is built and run by the Sapling team as a student project. "We" and "us" on this page mean
+            that team. This policy covers the Sapling website.
+        </p>
+
+        <h2>2. What we collect</h2>
+        <h3>Information you give us</h3>
+        <ul>
+            <li><b>Account:</b> your name, email address and password. The password is stored only in a scrambled (hashed) form that we cannot read. If you sign in with Google, we receive your name and email from Google and no password.</li>
+            <li><b>Profile:</b> your college, course and branch, passing year, CGPA, number of backlogs, city and state, preferred language, and a profile photo if you add one.</li>
+            <li><b>Skills and interests:</b> the skills you select, your answers to the interest quiz and the interest code worked out from them, and the career you choose as your target.</li>
+            <li><b>Learning progress:</b> the courses you follow and the checkpoints you tick off.</li>
+            <li><b>Resumes:</b> the resume files you upload, the text read from them, the resumes you build or edit, and the scores and suggestions given for them.</li>
+            <li><b>Mock interviews:</b> a written transcript of what you and the interviewer said, timing measurements such as pauses and speaking pace, any notes you add before starting, and the report. We do not keep a recording of your voice.</li>
+            <li><b>Sapling AI:</b> the questions you type are sent for an answer. The conversation is not saved to your account and is gone when you close or reload the page.</li>
+            <li><b>Community:</b> your comments and upvotes on college announcements, the posts and messages you save, and the messages you write in the student space.</li>
+            <li><b>Applications:</b> the openings you mark as applied.</li>
+        </ul>
+        <h3>Information collected automatically</h3>
+        <ul>
+            <li><b>Sign-in cookie:</b> a cookie that keeps you signed in for up to 14 days, and a security cookie that protects forms. Sapling needs these to work.</li>
+            <li><b>Preferences in your browser:</b> your light or dark theme, whether the side menu is collapsed, and the sections you opened recently. These stay on your device.</li>
+            <li><b>Server records:</b> like most websites, our server records technical details of requests, such as the time and the address they came from, to keep the service running and find faults.</li>
+        </ul>
+        <p>Sapling has no advertising and no tracking for advertisers.</p>
+
+        <h2>3. How we use it</h2>
+        <ul>
+            <li>To work out how well each career fits you, which skills you are missing, and which courses cover them.</li>
+            <li>To review and improve your resume and to run and report on your mock interviews.</li>
+            <li>To answer your questions in Sapling AI, using your branch, college, passing year, location, target role and missing skills so that the answer is about you.</li>
+            <li>To tailor interview questions and resume feedback, using your first name, college, branch, passing year, CGPA and skills.</li>
+            <li>To show you announcements from your college and let you talk to its other students.</li>
+            <li>To send you one-time codes by email when you sign up or reset your password.</li>
+            <li>To keep the service secure, fix problems and understand how much it is used.</li>
+        </ul>
+        <p>We do not use your information to make decisions about you outside Sapling, and we do not sell or rent it to anyone.</p>
+
+        <h2>4. Who can see your information</h2>
+        <h3>Your college</h3>
+        <p>
+            If your college has a Sapling account, its staff can see a list of the students who named that college:
+            your name, email address, branch, passing year, target career, skills, profile photo, and whether you
+            finished setting up your profile. They can download this list. They can also see comments you post on
+            the college's own announcements.
+        </p>
+        <p>
+            Your college cannot see your resume, your mock interviews or their reports, your CGPA or backlogs,
+            your questions to Sapling AI, or anything in the student space.
+        </p>
+        <h3>Other students of your college</h3>
+        <p>
+            In the student space, students of your college can see your name, profile photo, passing year and the
+            messages you post there. On college announcements, they can see your name and your comments.
+            Students of other colleges cannot see any of this.
+        </p>
+        <h3>Sapling administrators</h3>
+        <p>The people who run Sapling can see account details in order to manage accounts and fix problems.</p>
+        <h3>Services that work for us</h3>
+        <p>Sapling relies on a few outside services. Each receives only what it needs for its job:</p>
+        <div class="policy-table-wrap">
+            <table class="policy-table">
+                <thead>
+                    <tr><th>Service</th><th>What it does</th><th>What it receives</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Microsoft Azure</td>
+                        <td>Hosts the website and its database</td>
+                        <td>Everything stored in your account</td>
+                    </tr>
+                    <tr>
+                        <td>An AI model service (at present Hugging Face Inference Providers)</td>
+                        <td>Writes resume feedback, interview questions and reports, and Sapling AI answers</td>
+                        <td>Your resume as you wrote it (including any contact details in it), your interview answers, your questions, and your first name, college, branch, passing year, CGPA, skills, location, target role and missing skills. Your password is never sent.</td>
+                    </tr>
+                    <tr>
+                        <td>Microsoft Azure AI Speech</td>
+                        <td>Gives the interviewer a voice</td>
+                        <td>The interviewer's words, which can include your first name</td>
+                    </tr>
+                    <tr>
+                        <td>Your browser's speech recognition (Google Chrome or Microsoft Edge)</td>
+                        <td>Turns your spoken answers into text</td>
+                        <td>Your voice during an interview, handled by the browser's maker under its own policy. Sapling receives only the text.</td>
+                    </tr>
+                    <tr>
+                        <td>Microsoft Azure Communication Services</td>
+                        <td>Sends one-time codes by email</td>
+                        <td>Your email address and the code</td>
+                    </tr>
+                    <tr>
+                        <td>Google</td>
+                        <td>Sign in with Google, if you choose it</td>
+                        <td>That you are signing in to Sapling</td>
+                    </tr>
+                    <tr>
+                        <td>Cloudflare Turnstile</td>
+                        <td>Checks that forms are filled in by a person</td>
+                        <td>Technical details about your browser and connection</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <p>
+            These services may process information on servers outside India. We may also disclose information
+            when the law requires it.
+        </p>
+
+        <h2>5. How long we keep it</h2>
+        <p>
+            We keep your information for as long as you have an account. You can delete individual resumes,
+            interviews and your own messages yourself. When your account is deleted, the information stored in it
+            is removed from Sapling. Copies may remain for a short time in backups, and services that work for us
+            keep their own records for the periods set out in their policies.
+        </p>
+
+        <h2>6. Your choices and rights</h2>
+        <ul>
+            <li><b>See and correct:</b> your profile page shows what Sapling holds about you, and you can change it there.</li>
+            <li><b>Delete:</b> you can delete your account, and everything in it, from the bottom of your profile page. It takes effect at once and cannot be undone.</li>
+            <li><b>Withdraw consent:</b> you can stop using Sapling at any time and delete your account.</li>
+            <li><b>Complain:</b> if you are unhappy with how your information is handled, tell us first so we can put it right. You may also have the right to complain to the Data Protection Board of India under the Digital Personal Data Protection Act, 2023.</li>
+        </ul>
+
+        <h2>7. Security</h2>
+        <p>
+            Sapling is served over an encrypted (https) connection, passwords are stored only in hashed form, and
+            access to student lists is limited to the college named on each student's profile. No system is
+            perfectly secure, so please use a password you do not use anywhere else.
+        </p>
+
+        <h2>8. Younger users</h2>
+        <p>
+            Sapling is meant for college students. If you are under 18, use Sapling only with the consent of a
+            parent or guardian.
+        </p>
+
+        <h2>9. Changes to this policy</h2>
+        <p>
+            When Sapling changes how it handles information, we will update this page and the date at the top.
+            If a change is significant, we will tell you on the site.
+        </p>
+
+        <h2>10. Contact</h2>
+        @if (!string.IsNullOrWhiteSpace(ContactEmail))
+        {
+            <p>
+                For questions about this policy or your information, write to
+                <a href="@($"mailto:{ContactEmail}")">@ContactEmail</a>.
+            </p>
+        }
+        else
+        {
+            <p>For questions about this policy or your information, contact the Sapling team.</p>
+        }
+    </main>
+
+    <footer class="container policy-foot">
+        <span class="t-small t-subtle">Sapling &middot; Campus to Corporate</span>
+        <a class="t-small" href="/signin">Back to Sapling</a>
+    </footer>
+</div>
+
+@code {
+    // Change this whenever the wording above changes.
+    private const string Updated = "4 October 2026";
+
+    /// <summary>Set Site:ContactEmail in configuration; the policy needs a real address people can write to.</summary>
+    private string? ContactEmail => Config["Site:ContactEmail"];
+}

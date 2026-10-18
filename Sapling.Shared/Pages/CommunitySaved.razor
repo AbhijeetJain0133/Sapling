@@ -1,0 +1,114 @@
+@page "/community/saved"
+@namespace Sapling.Shared.Pages
+@inject ICommunityService CommunityService
+@inject IStudentSpaceService Space
+
+<PageTitle>Saved · Sapling</PageTitle>
+
+@* One list for everything the student kept: college announcements and student-space messages. *@
+<div class="chan-page" style="max-width:760px">
+    <header class="chan-head hue-community">
+        <a class="btn btn-ghost btn-icon btn-sm" href="/community" aria-label="Back to community">
+            <SapIcon Name="arrow-left" Size="18" />
+        </a>
+        <span class="chan-head-main" style="cursor:default">
+            <span class="chan-head-pic"><SapIcon Name="bookmark" Size="18" Stroke="2" /></span>
+            <span class="stack" style="gap:0;min-width:0">
+                <h1 class="chan-head-title">Saved</h1>
+                <span class="chan-head-sub">Announcements and messages you kept</span>
+            </span>
+        </span>
+    </header>
+
+    @if (_posts is null || _messages is null)
+    {
+        <div class="stack g-3">
+            @for (var i = 0; i < 2; i++)
+            {
+                <div class="card"><div class="skeleton" style="height:140px"></div></div>
+            }
+        </div>
+    }
+    else if (_posts.Count == 0 && _messages.Count == 0)
+    {
+        <SapEmptyState Title="Nothing saved yet" Icon="bookmark" Art="nothing-here" Hue="community"
+                       Description="Tap the bookmark on an announcement, or open a message's options in the student space and choose Save.">
+            <a class="btn btn-primary" href="/community">Open the community</a>
+        </SapEmptyState>
+    }
+    else
+    {
+        @if (_messages.Count > 0)
+        {
+            <div class="stack g-3">
+                <span class="section-title hue-community">From the student space <span class="t-subtle" style="font-weight:500">&middot; @_messages.Count</span></span>
+                @foreach (var message in _messages)
+                {
+                    <div class="card saved-msg" @key="message.Id">
+                        <span class="space-avatar hue-@Hues.ForKey(message.AuthorName)">@Hues.Monogram(message.AuthorName)</span>
+                        <div class="stack grow" style="gap:2px;min-width:0">
+                            <span class="row g-2 t-caption t-subtle">
+                                <b class="space-author">@(message.IsMine ? "You" : message.AuthorName)</b>
+                                @CommunityDisplay.Ago(message.PostedAt)
+                            </span>
+                            <span class="space-text">@message.Body</span>
+                        </div>
+                        <button type="button" class="btn btn-ghost btn-icon btn-sm save-btn" aria-pressed="true"
+                                title="Remove from saved" aria-label="Remove from saved" @onclick="() => UnsaveAsync(message.Id)">
+                            <SapIcon Name="bookmark" Size="16" Stroke="2" />
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (_posts.Count > 0)
+        {
+            <div class="stack g-3">
+                <span class="section-title hue-govt">College announcements <span class="t-subtle" style="font-weight:500">&middot; @_posts.Count</span></span>
+                @foreach (var post in _posts)
+                {
+                    <CommunityPostCard @key="post.Id" Post="post" PostChanged="Replace" />
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private List<CommunityPostDto>? _posts;
+    private List<StudentMessageDto>? _messages;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _posts = [.. await CommunityService.GetSavedAsync()];
+        _messages = [.. await Space.GetSavedAsync()];
+    }
+
+    private async Task UnsaveAsync(int id)
+    {
+        await Space.SetSavedAsync(id, false);
+        _messages!.RemoveAll(m => m.Id == id);
+    }
+
+    private void Replace(CommunityPostDto updated)
+    {
+        if (_posts is null)
+        {
+            return;
+        }
+
+        // Unsaving here takes the post off the list, since this page is the list of saved ones.
+        if (!updated.IsSaved)
+        {
+            _posts.RemoveAll(p => p.Id == updated.Id);
+            return;
+        }
+
+        var index = _posts.FindIndex(p => p.Id == updated.Id);
+        if (index >= 0)
+        {
+            _posts[index] = updated;
+        }
+    }
+}

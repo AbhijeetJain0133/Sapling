@@ -1,0 +1,268 @@
+@page "/community/{Id:int}"
+@namespace Sapling.Shared.Pages
+@inject ICommunityService Community
+
+<PageTitle>@(_post?.Title ?? "Post") · Sapling</PageTitle>
+<RecordVisit Feature="@FeatureCatalog.Community" />
+
+<div class="stack g-5" style="max-width:760px">
+    <a class="btn btn-ghost btn-sm" href="/community/announcements" style="align-self:flex-start">
+        <SapIcon Name="chevron-left" Size="15" />
+        Community
+    </a>
+
+    @if (_loaded && _post is null)
+    {
+        <SapEmptyState Title="Post not found" Icon="users" Art="not-found" Hue="community"
+                       Description="It may have been removed, or it belongs to another college's community.">
+            <a class="btn btn-primary" href="/community">Back to community</a>
+        </SapEmptyState>
+    }
+    else if (_post is null)
+    {
+        <div class="card"><div class="skeleton" style="height:260px"></div></div>
+    }
+    else
+    {
+        <CommunityPostCard Post="_post" PostChanged="p => _post = p" Full />
+
+        <SapCard Title="Comments" Subtitle="@CommentsSubtitle">
+            <div class="stack g-2">
+                <label class="sr-only" for="comment-draft">Add a comment</label>
+                <textarea id="comment-draft" class="textarea" rows="3" maxlength="@MaxLength"
+                          placeholder="Ask the institute a question or add something useful"
+                          @bind="_draft" @bind:event="oninput" disabled="@_busy"></textarea>
+                <div class="row between g-3">
+                    <span class="t-caption t-subtle">@_draft.Length / @MaxLength</span>
+                    <button type="button" class="btn btn-primary btn-sm" @onclick="() => SubmitAsync(null)"
+                            disabled="@(_busy || string.IsNullOrWhiteSpace(_draft))">
+                        <SapIcon Name="send" Size="15" /> Comment
+                    </button>
+                </div>
+                @if (_error is not null && _replyTo is null)
+                {
+                    <span class="field-error" role="alert">@_error</span>
+                }
+            </div>
+
+            @if (_comments is null)
+            {
+                <div class="skeleton" style="height:80px"></div>
+            }
+            else if (_comments.Count == 0)
+            {
+                <span class="t-small t-muted">No comments yet. Questions here are visible to the institute and other students.</span>
+            }
+            else
+            {
+                <div class="stack g-5">
+                    @foreach (var thread in _comments)
+                    {
+                        <div class="stack g-3" @key="thread.Id">
+                            @CommentView(thread, thread.Id)
+
+                            @if (thread.Replies.Count > 0 || _replyTo == thread.Id)
+                            {
+                                <div class="comment-replies stack g-3">
+                                    @foreach (var reply in thread.Replies)
+                                    {
+                                        <div @key="reply.Id">@CommentView(reply, thread.Id)</div>
+                                    }
+
+                                    @if (_replyTo == thread.Id)
+                                    {
+                                        <div class="stack g-2">
+                                            <label class="sr-only" for="reply-draft">Reply to @thread.AuthorName</label>
+                                            <textarea id="reply-draft" class="textarea" rows="2" maxlength="@MaxLength"
+                                                      placeholder="@($"Reply to {thread.AuthorName}")"
+                                                      @bind="_replyDraft" @bind:event="oninput" disabled="@_busy"></textarea>
+                                            @if (_error is not null)
+                                            {
+                                                <span class="field-error" role="alert">@_error</span>
+                                            }
+                                            <div class="row g-2" style="justify-content:flex-end">
+                                                <button type="button" class="btn btn-ghost btn-sm" @onclick="CancelReply">Cancel</button>
+                                                <button type="button" class="btn btn-primary btn-sm" @onclick="() => SubmitAsync(thread.Id)"
+                                                        disabled="@(_busy || string.IsNullOrWhiteSpace(_replyDraft))">
+                                                    Reply
+                                                </button>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </SapCard>
+    }
+</div>
+
+@code {
+    private const int MaxLength = 1000;
+
+    [Parameter] public int Id { get; set; }
+
+    private CommunityPostDto? _post;
+    private List<CommunityCommentDto>? _comments;
+    private bool _loaded;
+    private bool _busy;
+    private string? _error;
+    private string _draft = "";
+    private string _replyDraft = "";
+    private int? _replyTo;
+    private int? _confirmDelete;
+
+    private string CommentsSubtitle => _post is null
+        ? ""
+        : _post.CommentCount == 1 ? "1 comment" : $"{_post.CommentCount} comments";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loaded = false;
+        _post = await Community.GetPostAsync(Id);
+        _loaded = true;
+        _comments = _post is null ? [] : [.. await Community.GetCommentsAsync(Id)];
+    }
+
+    private RenderFragment CommentView(CommunityCommentDto c, int threadId) => __builder =>
+    {
+        <div class="comment row-top g-3">
+            @if (c.IsInstitution)
+            {
+                <InstitutionTile InstitutionId="@(c.IsPostAuthor ? _post!.Author.Id : 0)" Size="34" />
+            }
+            else
+            {
+                <span class="avatar" style="width:34px;height:34px">@Initials(c.AuthorName)</span>
+            }
+
+            <div class="stack g-1 grow">
+                <div class="comment-bubble stack g-1 @(c.IsPostAuthor ? "comment-author" : null)">
+                    <div class="row g-2 wrap">
+                        <span class="post-author" style="font-size:13.5px">
+                            <span>@c.AuthorName</span>
+                            @if (c.IsVerified)
+                            {
+                                <VerifiedTick Size="14" />
+                            }
+                        </span>
+                        @if (c.IsPostAuthor)
+                        {
+                            <SapBadge Tone="primary">Author</SapBadge>
+                        }
+                        @if (c.IsMine)
+                        {
+                            <SapBadge Tone="neutral">You</SapBadge>
+                        }
+                    </div>
+                    @if (!string.IsNullOrEmpty(c.AuthorHeadline))
+                    {
+                        <span class="t-caption t-subtle">@c.AuthorHeadline</span>
+                    }
+                    <p class="t-small post-body" style="margin:0">@c.Body</p>
+                </div>
+
+                <div class="row g-1 wrap t-caption t-subtle comment-actions">
+                    <span>@CommunityDisplay.Ago(c.PostedAt)</span>
+                    <span aria-hidden="true">&middot;</span>
+                    <button type="button" class="link-btn" @onclick="() => StartReply(threadId)">
+                        <SapIcon Name="corner-down-right" Size="13" /> Reply
+                    </button>
+                    @if (c.IsMine)
+                    {
+                        <span aria-hidden="true">&middot;</span>
+                        @if (_confirmDelete == c.Id)
+                        {
+                            <span>Delete@(c.ParentId is null && c.Replies.Count > 0 ? " with its replies" : "")?</span>
+                            <button type="button" class="link-btn link-danger" @onclick="() => DeleteAsync(c.Id)" disabled="@_busy">Yes, delete</button>
+                            <button type="button" class="link-btn" @onclick="() => _confirmDelete = null">Cancel</button>
+                        }
+                        else
+                        {
+                            <button type="button" class="link-btn" @onclick="() => _confirmDelete = c.Id">
+                                <SapIcon Name="trash" Size="13" /> Delete
+                            </button>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    };
+
+    private static string Initials(string name) => string.Concat(
+        name.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Take(2)
+            .Select(part => char.ToUpperInvariant(part[0])));
+
+    private void StartReply(int threadId)
+    {
+        _replyTo = threadId;
+        _replyDraft = "";
+        _error = null;
+    }
+
+    private void CancelReply()
+    {
+        _replyTo = null;
+        _replyDraft = "";
+        _error = null;
+    }
+
+    private async Task SubmitAsync(int? parentId)
+    {
+        var text = parentId is null ? _draft : _replyDraft;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+        try
+        {
+            SetComments(await Community.AddCommentAsync(Id, new AddCommentRequest(text, parentId)));
+            if (parentId is null)
+            {
+                _draft = "";
+            }
+            else
+            {
+                CancelReply();
+            }
+        }
+        catch (ArgumentException e)
+        {
+            _error = e.Message;
+        }
+        catch (Exception)
+        {
+            _error = "Your comment could not be posted. Check your connection and try again.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task DeleteAsync(int commentId)
+    {
+        _busy = true;
+        try
+        {
+            SetComments(await Community.DeleteCommentAsync(Id, commentId));
+        }
+        finally
+        {
+            _busy = false;
+            _confirmDelete = null;
+        }
+    }
+
+    private void SetComments(IReadOnlyList<CommunityCommentDto> comments)
+    {
+        _comments = [.. comments];
+        _post = _post! with { CommentCount = comments.Sum(c => 1 + c.Replies.Count) };
+    }
+}

@@ -1,0 +1,140 @@
+@namespace Sapling.Shared.Components
+@inject ICareerService Careers
+
+@* Every career, ranked for the student. Opening a card previews the role, where it can be made the target. *@
+<div class="stack g-4">
+    @* One toolbar: scope, search and sort on a line, with the result count right under it. *@
+    <div class="stack g-2">
+        <div class="chooser-toolbar">
+            <div class="scroll-x">
+                <SapSegmented TValue="string" Options="_scopes" Value="_scope" ValueChanged="OnScopeChanged" />
+            </div>
+            <input class="input chooser-search" type="search" placeholder="Search roles or fields"
+                   aria-label="Search roles" @bind="_query" @bind:event="oninput" />
+            <label class="row g-2 t-small t-muted chooser-sort">
+                Sort by
+                <select class="select" style="width:auto" @bind="_sort">
+                    <option value="fit">Skill Match</option>
+                    <option value="outlook">Popularity</option>
+                </select>
+            </label>
+        </div>
+        @if (_paths is not null && Visible.Count > 0)
+        {
+            <span class="t-caption t-subtle">@Visible.Count @(Visible.Count == 1 ? "role" : "roles"). Open one to see it in full and make it your target.</span>
+        }
+    </div>
+
+    @if (_paths is null)
+    {
+        <div class="grid grid-3">
+            @for (var i = 0; i < 6; i++)
+            {
+                <div class="card stack g-3">
+                    <div class="skeleton" style="height:86px;width:86px;border-radius:50%"></div>
+                    <div class="skeleton" style="height:18px;width:70%"></div>
+                    <div class="skeleton" style="height:40px"></div>
+                </div>
+            }
+        </div>
+    }
+    else if (Visible.Count == 0)
+    {
+        <SapEmptyState Title="No roles match" Icon="compass" Art="search" Hue="career"
+                       Description="@(string.IsNullOrWhiteSpace(_query) ? "Add your course to your profile, or switch to all careers." : "Try a different search, or switch to all careers.")" />
+    }
+    else
+    {
+        <div class="grid grid-3">
+            @foreach (var path in Visible.Take(_limit))
+            {
+                <a class="card stack g-3 career-tile hue-@Hues.ForKey(path.Family) @(path.IsTarget ? "is-target" : null)" href="@($"/paths/{path.Id}")" @key="path.Id">
+                    <div class="row between g-2 wrap career-tile-badges">
+                        <div class="row g-2 wrap">
+                            <SapBadge Tone="@CareerDetails.TierTone(path.Tier)">@path.Tier</SapBadge>
+                            @if (path.IsTarget)
+                            {
+                                <SapBadge Tone="primary" Icon="target">Your target</SapBadge>
+                            }
+                            @if (path.Outlook.Count > 0)
+                            {
+                                <span title="@string.Join(", ", path.Outlook.Select(JobOutlook.Label))">
+                                    <SapBadge Tone="success" Icon="trending-up">Bright outlook</SapBadge>
+                                </span>
+                            }
+                        </div>
+                        <span class="badge badge-hue">@path.Family</span>
+                    </div>
+
+                    <div class="row g-4 career-tile-main">
+                        <ScoreRing Value="path.FitScore" Size="78" Thickness="8" Label="Fit" Animate="false" />
+                        <div class="stack grow" style="gap:4px;min-width:0">
+                            <h4>@path.Title</h4>
+                            @if (CareerDetails.RouteLabel(path.CourseRelevance) is { } route)
+                            {
+                                <span class="t-caption t-subtle">@route</span>
+                            }
+                        </div>
+                    </div>
+
+                    <span class="t-small t-muted career-tile-reason">@path.TopReason</span>
+                </a>
+            }
+        </div>
+        @if (Visible.Count > _limit)
+        {
+            @* A long list is paged so the page stays a short scroll, most of all on a phone. *@
+            <button type="button" class="btn btn-secondary btn-block" @onclick="() => _limit += PageSize">
+                Show @Math.Min(PageSize, Visible.Count - _limit) more
+                <span class="t-subtle" style="font-weight:500">&middot; @(Visible.Count - _limit) left</span>
+            </button>
+        }
+    }
+
+    <span class="t-caption t-subtle">
+        Role descriptions, skills, interest profiles and job outlook come from O*NET (U.S. Department of Labor, CC BY 4.0).
+        Outlook is based on U.S. projections, so treat it as a guide to where work is heading, not Indian demand.
+        Fit scores and course routes are Sapling's own, and each role page shows how they were worked out.
+    </span>
+</div>
+
+@code {
+    private readonly IReadOnlyList<SapSegmented<string>.Option> _scopes =
+    [
+        new("mine", "For your course"),
+        new("all", "All careers"),
+    ];
+
+    private const int PageSize = 12;
+
+    private string _scope = "mine";
+    private int _limit = PageSize;
+    private string _query = "";
+    private string _sort = "fit";
+    private IReadOnlyList<CareerPathSummaryDto>? _paths;
+
+    private IReadOnlyList<CareerPathSummaryDto> Visible
+    {
+        get
+        {
+            var paths = (_paths ?? []).Where(p => string.IsNullOrWhiteSpace(_query)
+                || p.Title.Contains(_query.Trim(), StringComparison.OrdinalIgnoreCase)
+                || p.Family.Contains(_query.Trim(), StringComparison.OrdinalIgnoreCase));
+
+            // The server already orders by fit; outlook re-sorts here, with fit breaking ties.
+            return _sort == "outlook"
+                ? paths.OrderByDescending(p => JobOutlook.Rank(p.Outlook)).ThenByDescending(p => p.FitScore).ToList()
+                : paths.ToList();
+        }
+    }
+
+    protected override async Task OnInitializedAsync() => _paths = await Careers.GetPathsAsync();
+
+    private async Task OnScopeChanged(string scope)
+    {
+        _scope = scope;
+        _limit = PageSize;
+        _paths = null;
+        _paths = await Careers.GetPathsAsync(all: scope == "all");
+    }
+}

@@ -1,0 +1,35 @@
+@namespace Sapling.Web.Components.Shared
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Google
+@inject IAuthenticationSchemeProvider Schemes
+
+@if (_enabled == true)
+{
+    @* A full page load: the flow leaves for accounts.google.com, which enhanced navigation cannot follow. *@
+    <a class="btn btn-secondary btn-block" href="@Href" data-enhance-nav="false">
+        <GoogleMark />
+        Continue with Google
+    </a>
+}
+else if (_enabled is false)
+{
+    <button type="button" class="btn btn-secondary btn-block" disabled
+            title="Add Authentication:Google:ClientId and ClientSecret to the server configuration to enable this">
+        <GoogleMark />
+        Continue with Google
+        <SapBadge Tone="neutral">Not set up</SapBadge>
+    </button>
+}
+
+@code {
+    [Parameter] public string? ReturnUrl { get; set; }
+
+    private bool? _enabled;
+
+    private string Href => string.IsNullOrWhiteSpace(ReturnUrl)
+        ? "/account/google"
+        : $"/account/google?returnUrl={Uri.EscapeDataString(ReturnUrl)}";
+
+    protected override async Task OnInitializedAsync() =>
+        _enabled = await Schemes.GetSchemeAsync(GoogleDefaults.AuthenticationScheme) is not null;
+}

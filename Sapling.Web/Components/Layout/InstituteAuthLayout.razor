@@ -1,0 +1,91 @@
+@namespace Sapling.Web.Components.Layout
+@inherits LayoutComponentBase
+
+@* Institute sign-in is web-only, so this layout never needs the mobile branch AuthLayout carries.
+   It shares the student landing's styles (css/landing.css) so both front doors feel like one product. *@
+<div class="landing">
+    <section class="landing-hero container">
+        <div class="landing-copy stack g-4">
+            <div class="row between g-3 wrap">
+                <SapLogo Size="34" WordSize="22" />
+                <a class="btn btn-ghost btn-sm" href="/signin">
+                    <SapIcon Name="graduation-cap" Size="15" />
+                    Student login
+                </a>
+            </div>
+            <span class="page-eyebrow hue-community">For colleges and placement cells</span>
+            <h1 class="landing-h1">Your college's own <span class="t-grad-brand">community</span>, and the students in it.</h1>
+            <p class="t-muted landing-lede">
+                Post workshops, drives and announcements straight to the students who named your college, answer
+                their questions in the thread, and see who has registered and what they are aiming at.
+            </p>
+            <ul class="stack g-2" style="list-style:none;margin:0;padding:0">
+                @foreach (var point in _points)
+                {
+                    <li class="row-top g-2">
+                        <span class="landing-point-icon"><SapIcon Name="check" Size="13" Stroke="3" /></span>
+                        <span class="t-small">@point</span>
+                    </li>
+                }
+            </ul>
+        </div>
+
+        <div class="auth-card card auth-card-float">
+            @Body
+        </div>
+
+        <SapArt Name="community" Class="landing-art landing-art-sm hue-community" />
+
+        <a class="landing-peek" href="#what-you-get" aria-label="See what you get">
+            <span class="auth-scrollcue">
+                See what you get
+                <SapIcon Name="arrow-down" Size="16" />
+            </span>
+        </a>
+    </section>
+</div>
+
+<section class="container section" id="what-you-get">
+    <div class="stack g-2" style="margin-bottom:var(--sp-5)">
+        <span class="page-eyebrow hue-community">What you get</span>
+        <h2>A private feed, and the numbers behind it.</h2>
+    </div>
+    <div class="grid grid-4 landing-tiles">
+        @foreach (var card in _cards)
+        {
+            <div class="tile feature-tile feature-tile-long hue-@card.Hue">
+                <SapArt Name="@card.Art" Class="tile-art" />
+                <span class="feature-tile-head">
+                    <span class="icon-tile icon-tile-solid feature-tile-icon"><SapIcon Name="@card.Icon" Size="18" /></span>
+                </span>
+                <h4>@card.Title</h4>
+                <span class="t-small feature-tile-blurb">@card.Detail</span>
+            </div>
+        }
+    </div>
+</section>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Something went wrong.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">&times;</span>
+</div>
+
+@code {
+    private static readonly string[] _points =
+    [
+        "Only your college can post to its feed, and only your students can read it.",
+        "Pin what matters, archive what is over, reply as the college.",
+        "See who has registered, what they study and where they are headed.",
+    ];
+
+    private sealed record Card(string Icon, string Hue, string Art, string Title, string Detail);
+
+    private static readonly Card[] _cards =
+    [
+        new("megaphone", "community", "community", "Post to your students", "Workshops, drives, events and announcements, with a date, a venue and a link."),
+        new("message", "interview", "interview", "Answer in the thread", "Students comment under a post; you reply as the college, with a verified tick."),
+        new("users", "career", "profile", "See your cohort", "Every registered student with their branch, batch, target role and claimed skills."),
+        new("radar", "roadmap", "opportunities", "Know the shape of it", "Counts by branch and graduating batch, plus how your posts are landing."),
+    ];
+}

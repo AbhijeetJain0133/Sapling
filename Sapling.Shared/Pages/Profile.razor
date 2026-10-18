@@ -1,0 +1,375 @@
+@page "/profile"
+@namespace Sapling.Shared.Pages
+@implements IDisposable
+@inject IProfileService Profiles
+@inject ISkillGapService Gaps
+@inject IThemeService Theme
+@inject IRecentFeaturesService Recents
+@inject NavigationManager Nav
+@inject IFormFactor FormFactor
+
+<PageTitle>Profile &amp; settings · Sapling</PageTitle>
+
+<div class="stack g-5">
+    <div class="stack g-1">
+        <h1 style="font-size:28px;line-height:34px">Profile &amp; settings</h1>
+        <span class="t-muted">Everything Sapling knows about you. Your data, your call.</span>
+    </div>
+
+    @if (_profile is null)
+    {
+        <div class="card"><div class="skeleton" style="height:160px"></div></div>
+    }
+    else
+    {
+        <div class="profile-grid">
+        <div class="stack g-5">
+        <div class="card profile-card">
+            <div class="profile-cover g-card hue-profile">
+                <SapArt Name="profile" Class="g-card-art" />
+            </div>
+            <div class="row-top g-4 wrap profile-head">
+                <div class="avatar-photo-wrap" @onclick="OpenAvatarModal" title="Change profile photo" role="button" tabindex="0" @onkeydown="@(e => { if (e.Key == "Enter" || e.Key == " ") OpenAvatarModal(); })">
+                    @if (!string.IsNullOrEmpty(_profile.AvatarDataUrl))
+                    {
+                        <span class="avatar avatar-xl" style="overflow:hidden">
+                            <img src="@_profile.AvatarDataUrl" alt="@_profile.FullName" class="avatar-img" />
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="avatar avatar-xl">@Initials</span>
+                    }
+                    <div class="avatar-camera-overlay">
+                        <SapIcon Name="camera" Size="22" />
+                        <span>Edit</span>
+                    </div>
+                </div>
+                <div class="stack grow g-1" style="min-width:200px">
+                    <h3>@_profile.FullName</h3>
+                    <span class="t-small t-muted">@_profile.Email</span>
+                    @if (!string.IsNullOrWhiteSpace(_profile.College))
+                    {
+                        <span class="t-small t-muted">@Join(_profile.Branch, _profile.College)</span>
+                    }
+                </div>
+                <a class="btn btn-secondary btn-sm" href="/onboarding/about">
+                    <SapIcon Name="edit-2" Size="14" />
+                    Edit profile
+                </a>
+            </div>
+        </div>
+
+        <SapCard Title="Details">
+            <ChildContent>
+                <dl class="profile-details">
+                    @foreach (var (label, value) in Details)
+                    {
+                        <div>
+                            <dt class="t-caption t-subtle">@label</dt>
+                            <dd class="t-small">@value</dd>
+                        </div>
+                    }
+                </dl>
+            </ChildContent>
+        </SapCard>
+        </div>
+
+        <div class="stack g-5">
+        <SapCard Title="Target career" Class="tile hue-career">
+            <ChildContent>
+                @if (_coverage is null)
+                {
+                    <div class="skeleton" style="height:48px"></div>
+                }
+                else if (!_coverage.TargetChosen)
+                {
+                    <div class="row between g-3 wrap">
+                        <span class="t-small t-muted">You haven't chosen a career yet. Pick one to see your skill gaps and roadmap.</span>
+                        <a class="btn btn-primary btn-sm" href="/career">Choose a career</a>
+                    </div>
+                }
+                else
+                {
+                    <div class="row between g-3 wrap">
+                        <div class="row g-3">
+                            <ScoreRing Value="_coverage.Fit" Size="56" Thickness="6" Animate="false" Label="Fit" Hue="career" />
+                            <div class="stack" style="gap:2px">
+                                <span style="font-weight:600">@_coverage.RoleName</span>
+                                <span class="t-caption t-subtle">You have @_coverage.Have of the @_coverage.Total skills it asks for.</span>
+                            </div>
+                        </div>
+                        <a class="btn btn-secondary btn-sm" href="/career">See gaps or change</a>
+                    </div>
+                }
+            </ChildContent>
+        </SapCard>
+
+        <SapCard Title="Skills" Subtitle="@SkillsSubtitle" Class="tile hue-roadmap">
+            <ChildContent>
+                @if (_skills is null)
+                {
+                    <div class="skeleton" style="height:72px"></div>
+                }
+                else if (_skills.Count == 0)
+                {
+                    <div class="row between g-3 wrap">
+                        <span class="t-small t-muted">No skills added yet. Your career matches get much better once you add them.</span>
+                        <a class="btn btn-primary btn-sm" href="/onboarding/skills">Add skills</a>
+                    </div>
+                }
+                else
+                {
+                    <div class="stack g-4">
+                        @foreach (var group in _skills.GroupBy(s => string.IsNullOrWhiteSpace(s.Category) ? "Other" : s.Category).OrderBy(g => g.Key))
+                        {
+                            <div class="stack g-2">
+                                <span class="t-overline t-subtle">@group.Key</span>
+                                <div class="row g-2 wrap">
+                                    @foreach (var skill in group)
+                                    {
+                                        <span class="chip chip-hue">@skill.Name</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </ChildContent>
+        </SapCard>
+        </div>
+        </div>
+    }
+
+    @if (_showAvatarModal && _profile is not null)
+    {
+        <AvatarEditorModal CurrentAvatarUrl="@_profile.AvatarDataUrl"
+                           OnSave="HandleSaveAvatar"
+                           OnClose="CloseAvatarModal" />
+    }
+
+    <div class="profile-grid">
+    <SapCard Title="Appearance" Subtitle="Follows your device by default">
+        <ChildContent>
+            <SapSegmented TValue="ThemeMode" Options="_themes" Value="Theme.Current" ValueChanged="SetThemeAsync" />
+        </ChildContent>
+    </SapCard>
+
+    <SapCard Title="Privacy" Subtitle="Data minimisation under the DPDP Act, 2023">
+        <ChildContent>
+            <div class="stack g-3">
+                <span class="t-small t-muted">
+                    Sapling stores only what your career matches are computed from. Your profile is never sold, and
+                    recommendations never use gender, category or college tier as ranking features.
+                </span>
+                <div class="row g-2 wrap">
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="ClearRecentAsync">
+                        Clear recently visited
+                    </button>
+                    <a class="btn btn-secondary btn-sm" href="/signout">
+                        <SapIcon Name="log-out" Size="15" />
+                        Sign out
+                    </a>
+                </div>
+                @if (_cleared)
+                {
+                    <span class="t-caption t-success">Recently visited history cleared on this device.</span>
+                }
+            </div>
+        </ChildContent>
+    </SapCard>
+
+    <SapCard Title="Delete account" Subtitle="Remove your account and everything in it">
+        <ChildContent>
+            <div class="stack g-3">
+                <span class="t-small t-muted">
+                    This permanently deletes your profile, skills, roadmap progress, resumes, interview reports,
+                    comments and student-space messages. It cannot be undone.
+                </span>
+                <div>
+                    <button type="button" class="btn btn-danger btn-sm" @onclick="() => _deleting = true">
+                        <SapIcon Name="trash" Size="15" />
+                        Delete my account
+                    </button>
+                </div>
+            </div>
+        </ChildContent>
+    </SapCard>
+    </div>
+</div>
+
+@if (_deleting)
+{
+    <SapModal Title="Delete your account?" OnClose="CloseDelete">
+        <ChildContent>
+            <div class="stack g-3">
+                <span class="t-small">
+                    Your account and everything stored in it will be deleted for good: your profile, skills,
+                    roadmap progress, resumes, interview reports, comments and student-space messages.
+                    <b>This cannot be undone.</b>
+                </span>
+                <div class="field">
+                    <label for="delete-confirm">Type <b>@DeleteAccountRequest.Word</b> to confirm</label>
+                    <input id="delete-confirm" class="input" autocomplete="off" autocapitalize="characters"
+                           @bind="_deleteWord" @bind:event="oninput" placeholder="@DeleteAccountRequest.Word" />
+                </div>
+                @if (_deleteError is not null)
+                {
+                    <span class="field-error" role="alert">@_deleteError</span>
+                }
+            </div>
+        </ChildContent>
+        <Footer>
+            <button type="button" class="btn btn-ghost" @onclick="CloseDelete" disabled="@_deleteBusy">Keep my account</button>
+            <button type="button" class="btn btn-danger" @onclick="DeleteAccountAsync" disabled="@(_deleteBusy || !DeleteConfirmed)">
+                @(_deleteBusy ? "Deleting…" : "Delete forever")
+            </button>
+        </Footer>
+    </SapModal>
+}
+
+@code {
+    private readonly IReadOnlyList<SapSegmented<ThemeMode>.Option> _themes =
+    [
+        new(ThemeMode.System, "System"),
+        new(ThemeMode.Light, "Light"),
+        new(ThemeMode.Dark, "Dark"),
+    ];
+
+    private StudentProfileDto? _profile;
+    private IReadOnlyList<SkillDto>? _skills;
+    private SkillCoverageDto? _coverage;
+    private bool _cleared;
+    private bool _showAvatarModal;
+    private bool _deleting;
+    private bool _deleteBusy;
+    private string _deleteWord = "";
+    private string? _deleteError;
+
+    private bool DeleteConfirmed =>
+        string.Equals(_deleteWord.Trim(), DeleteAccountRequest.Word, StringComparison.OrdinalIgnoreCase);
+
+    private void CloseDelete()
+    {
+        if (_deleteBusy)
+        {
+            return;
+        }
+
+        _deleting = false;
+        _deleteWord = "";
+        _deleteError = null;
+    }
+
+    private async Task DeleteAccountAsync()
+    {
+        if (!DeleteConfirmed || _deleteBusy)
+        {
+            return;
+        }
+
+        _deleteBusy = true;
+        _deleteError = null;
+        try
+        {
+            await Profiles.DeleteAccountAsync(new DeleteAccountRequest(_deleteWord));
+
+            // Signing out clears the session on this device: the cookie on the website, the tokens in the app.
+            // The website's sign-out page has to be loaded fresh, because it changes the sign-in cookie.
+            Nav.NavigateTo("/signout", forceLoad: FormFactor.Platform == "Web");
+        }
+        catch (Exception e) when (e is ArgumentException or InvalidOperationException or HttpRequestException)
+        {
+            _deleteError = e is ArgumentException
+                ? e.Message
+                : "Your account could not be deleted just now. Check your connection and try again.";
+            _deleteBusy = false;
+        }
+    }
+
+    private const string NotSet = "Not added";
+
+    private IEnumerable<(string Label, string Value)> Details
+    {
+        get
+        {
+            var p = _profile!;
+            var (course, branch) = CourseCatalog.Parse(p.Branch);
+            var names = (p.FullName ?? "").Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            yield return ("First name", names.Length > 0 ? names[0] : NotSet);
+            yield return ("Last name", names.Length > 1 ? names[1] : NotSet);
+            yield return ("Email", Or(p.Email));
+            yield return ("College", Or(p.College));
+            yield return ("Course", Or(course));
+            yield return ("Branch", Or(branch));
+            yield return ("Graduation year", p.GraduationYear > 0 ? p.GraduationYear.ToString() : NotSet);
+            yield return ("CGPA", p.Cgpa > 0 ? $"{p.Cgpa:0.0#} / 10" : NotSet);
+            yield return ("Active backlogs", p.Backlogs.ToString());
+            yield return ("State", Or(p.State));
+            yield return ("City", Or(p.City));
+            yield return ("Preferred language", Or(p.PreferredLanguage));
+            yield return ("Interest code", Or(p.RiasecCode));
+            yield return ("Onboarding", p.OnboardingComplete ? "Complete" : "Not finished");
+        }
+    }
+
+    private string? SkillsSubtitle => _skills is { Count: > 0 } s
+        ? $"{s.Count} skill{(s.Count == 1 ? "" : "s")} · change them with Edit profile"
+        : null;
+
+    private string Initials => string.Concat(
+        (_profile?.FullName ?? "Student").Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Take(2)
+            .Select(part => char.ToUpperInvariant(part[0])));
+
+    private static string Or(string? value) => string.IsNullOrWhiteSpace(value) ? NotSet : value;
+
+    private static string Join(params string?[] parts) =>
+        string.Join(", ", parts.Where(p => !string.IsNullOrWhiteSpace(p)));
+
+    protected override async Task OnInitializedAsync()
+    {
+        Theme.Changed += OnThemeChanged;
+        _profile = await Profiles.GetAsync();
+        _skills = await Profiles.GetSkillsAsync();
+        _coverage = await Gaps.GetCoverageAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Theme.InitializeAsync();
+        }
+    }
+
+    private void OpenAvatarModal() => _showAvatarModal = true;
+
+    private void CloseAvatarModal() => _showAvatarModal = false;
+
+    private async Task HandleSaveAvatar(string? dataUrl)
+    {
+        try
+        {
+            _profile = await Profiles.SetAvatarAsync(dataUrl);
+            _showAvatarModal = false;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error saving avatar: {ex.Message}");
+        }
+    }
+
+    private async Task SetThemeAsync(ThemeMode mode) => await Theme.SetAsync(mode);
+
+    private async Task ClearRecentAsync()
+    {
+        await Recents.ClearAsync();
+        _cleared = true;
+    }
+
+    private void OnThemeChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Theme.Changed -= OnThemeChanged;
+}

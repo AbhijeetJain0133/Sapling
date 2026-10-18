@@ -1,0 +1,418 @@
+/* Sign-in landing. These pages render statically, so everything here is CSS-only. */
+
+html:has(.landing) {
+    scroll-behavior: smooth;
+}
+
+.landing-hero {
+    position: relative;
+    isolation: isolate;
+    min-height: 100svh;
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(360px, .85fr);
+    align-items: center;
+    gap: var(--sp-8);
+    padding-block: var(--sp-6) 140px;
+}
+
+/* The wash lives on the full-width wrapper, not the centred hero, so it never shows the column's edges
+   on wide screens. One quiet brand-green glow; the colour on this page comes from the tiles below. */
+.landing {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+}
+
+.landing::before {
+    content: '';
+    position: absolute;
+    z-index: -2;
+    inset: 0;
+    background: radial-gradient(900px 600px at 22% 28%, var(--green-soft), transparent 70%);
+    opacity: .7;
+    pointer-events: none;
+}
+
+.landing-copy {
+    max-width: 560px;
+    position: relative;
+}
+
+.landing-h1 {
+    font-size: clamp(34px, 4.2vw, 54px);
+    line-height: 1.08;
+    letter-spacing: -.02em;
+}
+
+.landing-lede {
+    font-size: 17px;
+    line-height: 26px;
+    max-width: 48ch;
+}
+
+.stats-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-5);
+    list-style: none;
+    padding: var(--sp-3) 0;
+    margin: 0;
+    border-block: 1px solid var(--line);
+}
+
+.stats-strip b {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 24px;
+    line-height: 28px;
+    color: var(--ink);
+}
+
+.stats-strip span {
+    font-size: 12.5px;
+    color: var(--subtle);
+}
+
+.landing-point-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    margin-top: 1px;
+    flex: none;
+    border-radius: var(--r-pill);
+    background: var(--green-soft);
+    color: var(--green-text);
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 440px;
+    justify-self: end;
+}
+
+.auth-card-float {
+    position: relative;
+    z-index: 1;
+    border-color: transparent;
+    box-shadow: 0 30px 70px -24px rgba(20, 40, 60, .35), var(--shadow-lg);
+    padding-top: calc(var(--sp-5) + 4px);
+}
+
+.auth-card-float::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 4px;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    background: linear-gradient(90deg, var(--green), var(--coral));
+}
+
+.landing-art {
+    position: absolute;
+    z-index: -1;
+    right: 30%;
+    bottom: 130px;
+    width: min(32vw, 400px);
+    opacity: .9;
+    pointer-events: none;
+}
+
+/* On the landing the sapling itself is the art; its coloured halo blobs made the hero too busy. */
+.landing-art ellipse {
+    display: none;
+}
+
+/* Peek strip: sits inside the first viewport so the rest of the page is obviously there */
+.landing-peek {
+    position: absolute;
+    /* Full window width even though the hero is centred; .landing clips any overflow. */
+    left: 50%;
+    width: 100vw;
+    transform: translateX(-50%);
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-3);
+    padding-bottom: var(--sp-5);
+    text-decoration: none;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+
+.landing-peek:hover {
+    text-decoration: none;
+}
+
+.peek-track {
+    display: flex;
+    gap: var(--sp-3);
+    width: max-content;
+    animation: peek-scroll 40s linear infinite;
+}
+
+.landing-peek:hover .peek-track {
+    animation-play-state: paused;
+}
+
+@keyframes peek-scroll {
+    to {
+        transform: translateX(-50%);
+    }
+}
+
+.peek-tile {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-radius: var(--r-pill);
+    background: var(--g-soft);
+    color: var(--g-text);
+    border: 1px solid color-mix(in srgb, var(--g-a) 35%, transparent);
+    font-weight: 600;
+    font-size: 13.5px;
+    white-space: nowrap;
+}
+
+.peek-tile > svg {
+    color: var(--g-a);
+}
+
+.auth-scrollcue {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    color: var(--subtle);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.auth-scrollcue svg {
+    animation: sap-nudge 2s ease-in-out infinite;
+}
+
+@keyframes sap-nudge {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(4px); }
+}
+
+/* ---------- Showcase ---------- */
+
+.landing-tiles .feature-tile {
+    min-height: 210px;
+}
+
+.hiw {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--sp-5);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.hiw::before {
+    content: '';
+    position: absolute;
+    left: 28px;
+    right: 28px;
+    top: 28px;
+    height: 3px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--green), var(--coral));
+    opacity: .8;
+}
+
+.hiw-step {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.hiw-node {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: var(--r-pill);
+    background: var(--surface);
+    border: 2px solid var(--green);
+    box-shadow: 0 0 0 6px var(--bg), var(--shadow-md);
+    margin-bottom: var(--sp-2);
+}
+
+.hiw-num {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: .06em;
+    color: var(--coral-text);
+}
+
+.landing-fit {
+    min-height: 0;
+    padding: var(--sp-6);
+}
+
+.landing-fit .g-card-art {
+    opacity: .35;
+    width: 28%;
+}
+
+.tile-quiet {
+    justify-content: flex-start;
+    min-height: 0;
+    gap: var(--sp-2);
+}
+
+.landing-footer {
+    position: relative;
+}
+
+.landing-footer::before {
+    content: '';
+    position: absolute;
+    left: var(--sp-5);
+    right: var(--sp-5);
+    top: 0;
+    height: 3px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--green), var(--coral), var(--hue-career-a));
+}
+
+/* ---------- Mobile auth (MAUI) ---------- */
+
+.auth-mobile {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+    background: var(--bg);
+}
+
+.auth-mobile-top {
+    position: relative;
+    flex: 0 0 38%;
+    min-height: 210px;
+    padding: calc(env(safe-area-inset-top) + var(--sp-4)) 0 var(--sp-2);
+    display: flex;
+    flex-direction: column;
+    isolation: isolate;
+}
+
+.auth-mobile-top::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    background: radial-gradient(60% 60% at 20% 20%, var(--green-soft), transparent 70%);
+    opacity: .7;
+    filter: blur(16px);
+}
+
+.auth-mobile-tile .feature-tile {
+    pointer-events: none;
+    min-height: 186px;
+}
+
+.auth-mobile-form {
+    position: relative;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: var(--sp-5) var(--sp-4) calc(env(safe-area-inset-bottom) + var(--sp-5));
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+
+.auth-mobile-form::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 4px;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    background: linear-gradient(90deg, var(--green), var(--coral));
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 1099px) {
+    .landing-art {
+        display: none;
+    }
+}
+
+@media (max-width: 899px) {
+    .landing-hero {
+        grid-template-columns: 1fr;
+        min-height: auto;
+        padding-block: var(--sp-6) 120px;
+    }
+
+    .auth-card {
+        justify-self: stretch;
+        max-width: none;
+    }
+
+    .peek-track {
+        animation: none;
+        width: auto;
+        overflow-x: auto;
+        max-width: 100%;
+        padding: 0 var(--sp-4);
+        scrollbar-width: none;
+    }
+
+    .landing-peek {
+        -webkit-mask-image: none;
+        mask-image: none;
+    }
+
+    .hiw {
+        grid-template-columns: 1fr;
+        padding-left: 70px;
+    }
+
+    .hiw::before {
+        left: 27px;
+        right: auto;
+        top: 28px;
+        bottom: 28px;
+        width: 3px;
+        height: auto;
+    }
+
+    .hiw-node {
+        position: absolute;
+        left: -70px;
+        top: 0;
+    }
+}
+
+@media (max-width: 639px) {
+    .landing-tiles {
+        grid-template-columns: 1fr;
+    }
+}
+
+html[data-sapling-mode='dark'] .auth-card-float {
+    box-shadow: 0 30px 70px -24px rgba(0, 0, 0, .7), var(--shadow-lg);
+    border-color: var(--line);
+}
+
+/* Smaller hero scene for the institute landing, kept clear of the form card. */
+.landing-art-sm {
+    width: min(20vw, 250px);
+    right: 42%;
+    bottom: 150px;
+    opacity: .55;
+}

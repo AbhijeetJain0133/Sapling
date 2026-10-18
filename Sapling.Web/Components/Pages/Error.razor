@@ -1,0 +1,31 @@
+@page "/Error"
+@attribute [AllowAnonymous]
+@layout Sapling.Shared.Layout.EmptyLayout
+@using System.Diagnostics
+
+<PageTitle>Something went wrong · Sapling</PageTitle>
+
+<div class="container section stack center" style="min-height:100vh;justify-content:center">
+    <div class="card auth-card-float" style="max-width:520px;width:100%">
+        <SapEmptyState Title="Something went wrong" Art="nothing-here" Hue="coral"
+                       Description="The page hit an error on our side. Going back home usually clears it; if it keeps happening, tell us and quote the id below.">
+            <a class="btn btn-primary" href="/home">Back to home</a>
+            @if (ShowRequestId)
+            {
+                <code class="t-caption t-subtle">@RequestId</code>
+            }
+        </SapEmptyState>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+
+    private bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+
+    protected override void OnInitialized() =>
+        RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

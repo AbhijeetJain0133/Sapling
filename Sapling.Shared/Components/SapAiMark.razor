@@ -1,0 +1,20 @@
+@namespace Sapling.Shared.Components
+
+@* The Sapling AI mark: a speech bubble with the sapling growing inside it, and the logo's seed turned into a spark.
+   OnDark draws a white bubble for coloured backgrounds; otherwise the bubble is brand green. *@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="@Size" height="@Size" class="@Class" aria-hidden="true" focusable="false">
+    <path d="M11 7h23a9 9 0 0 1 9 9v13a9 9 0 0 1-9 9H23l-9.5 7.6a.9.9 0 0 1-1.5-.7V38h-1a9 9 0 0 1-9-9V16a9 9 0 0 1 9-9z"
+          fill="@(OnDark ? "#fff" : "var(--brand-stem)")" />
+    <rect x="16.5" y="18" width="5.4" height="14.5" rx="2.7" fill="@(OnDark ? "var(--brand-stem)" : "#fff")" />
+    <path d="M19.4 23.4c1.6-7.6 6.4-11 13.8-9.9-.9 7-5.600 10.2-13.800 9.900z" fill="@(OnDark ? "var(--brand-leaf)" : "#BFE6CF")" />
+    <path d="M39 1.500l1.900 4.600 4.600 1.900-4.600 1.900L39 14.500l-1.900-4.600-4.600-1.900 4.600-1.900z" fill="var(--brand-seed)"
+          stroke="@(OnDark ? "none" : "#fff")" stroke-width="1.2" stroke-linejoin="round" />
+</svg>
+
+@code {
+    [Parameter] public int Size { get; set; } = 24;
+
+    [Parameter] public bool OnDark { get; set; }
+
+    [Parameter] public string? Class { get; set; }
+}

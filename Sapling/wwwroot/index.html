@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en" data-sapling-theme="system">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Sapling</title>
+    <base href="/" />
+    <link rel="stylesheet" href="_content/Sapling.Shared/app.css" />
+    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="Sapling.styles.css" />
+    <link rel="icon" href="data:," />
+    <script>
+        // data-sapling-mode is the resolved light/dark that the stylesheets read; sapling.js keeps it in sync.
+        (function () {
+            var theme = 'system';
+            try { theme = localStorage.getItem('sapling-theme') || 'system'; } catch (e) { }
+            var dark = theme === 'dark' || (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+            document.documentElement.setAttribute('data-sapling-theme', theme);
+            document.documentElement.setAttribute('data-sapling-mode', dark ? 'dark' : 'light');
+        })();
+    </script>
+</head>
+<body>
+    <div class="status-bar-safe-area"></div>
+    <div id="app">
+        <!-- Same colour and logo as the native splash, so the hand-off is seamless; only the text is added. -->
+        <div class="boot">
+            <svg class="boot-mark" viewBox="430 340 470 700" aria-hidden="true">
+                <rect x="438.97" y="565.28" width="137.93" height="470.69" rx="68.97" fill="#006838" />
+                <path d="M512.49,680.17s122.65-392.5,376.72-331.97c0,0-37.11,330.13-376.72,331.97Z" fill="#2E9163" />
+                <circle cx="507.34" cy="543.66" r="83.09" fill="#FF6B4A" />
+            </svg>
+            <div class="boot-text">
+                <div class="boot-word">sapling</div>
+                <div class="boot-line" id="boot-line">Planting your career…</div>
+            </div>
+        </div>
+        <style>
+            .boot { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: #FFE3D8; color: #006838; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+            .boot-mark { width: 64px; height: 96px; animation: boot-grow 1.4s ease-in-out infinite alternate; transform-origin: 50% 100%; }
+            .boot-text { position: absolute; top: calc(50% + 72px); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+            .boot-word { font-size: 30px; font-weight: 800; letter-spacing: -.02em; }
+            .boot-line { font-size: 15px; color: #B03A20; opacity: .92; min-height: 20px; transition: opacity .3s; }
+            @keyframes boot-grow { from { transform: scale(.94); } to { transform: scale(1.04); } }
+            @media (prefers-reduced-motion: reduce) { .boot-mark { animation: none; } }
+        </style>
+        <script>
+            (function () {
+                var lines = ['Planting your career…', 'Watering your skills…', 'Reaching for the sun…', 'Every oak was once a sapling.'];
+                var i = 0;
+                var timer = setInterval(function () {
+                    var el = document.getElementById('boot-line');
+                    if (!el) { clearInterval(timer); return; }
+                    el.style.opacity = 0;
+                    setTimeout(function () { i = (i + 1) % lines.length; el.textContent = lines[i]; el.style.opacity = .92; }, 300);
+                }, 1600);
+            })();
+        </script>
+    </div>
+
+    <div id="blazor-error-ui" data-nosnippet>
+        Something went wrong.
+        <a href="." class="reload">Reload</a>
+        <span class="dismiss">&times;</span>
+    </div>
+
+    <script src="_content/Sapling.Shared/js/sapling.js"></script>
+    <script src="_framework/blazor.webview.js" autostart="false"></script>
+</body>
+</html>
